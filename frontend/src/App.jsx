@@ -7,6 +7,7 @@ import MovieDetails from './pages/MovieDetails'
 import SeriesDetails from './pages/SeriesDetails'
 import Movies from './pages/Movies'
 import Series from './pages/Series'
+import MyWatchlist from './pages/MyWatchlist'
 import { Toaster } from 'react-hot-toast'
 import Discover from './pages/Discover'
 
@@ -25,6 +26,7 @@ const App = () => {
         <Route path="/series" element={<Series/>}/>
         <Route path="/series:id" element={<SeriesDetails/>}/>
         <Route path="/discover" element={<Discover/>}/>
+        <Route path="/watchlist" element={<MyWatchlist/>}/>
       </Routes>
     </>
   )
