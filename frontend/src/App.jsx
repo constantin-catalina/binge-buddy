@@ -3,8 +3,7 @@ import Navbar from './components/Navbar'
 import Footer from './components/Footer'
 import Home from './pages/Home'
 import { Route, Routes, useLocation } from 'react-router-dom'
-import MovieDetails from './pages/MovieDetails'
-import SeriesDetails from './pages/SeriesDetails'
+import Details from './pages/Details'
 import Movies from './pages/Movies'
 import Series from './pages/Series'
 import MyWatchlist from './pages/MyWatchlist'
@@ -22,12 +21,13 @@ const App = () => {
       <Routes>
         <Route path="/" element={<Home/>}/>
         <Route path="/movies" element={<Movies/>}/>
-        <Route path="/movies:id" element={<MovieDetails/>}/>
+        <Route path="/movies:id" element={<Details/>}/>
         <Route path="/series" element={<Series/>}/>
-        <Route path="/series:id" element={<SeriesDetails/>}/>
+        <Route path="/series:id" element={<Details/>}/>
         <Route path="/discover" element={<Discover/>}/>
         <Route path="/watchlist" element={<MyWatchlist/>}/>
       </Routes>
+      {!isAdminRoute && <Footer/>}
     </>
   )
 }
