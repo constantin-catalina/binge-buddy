@@ -38,7 +38,7 @@ export const dummyShowsData = [
   {
     _id: "5",
     title: "The Prestige",
-    backdrop_path: "/background.jpg",
+    backdrop_path: "/the-prestige.jpg",
     release_date: "2006-10-20",
     genres: [{ name: "Mystery" }, { name: "Drama" }],
     runtime: "130",
