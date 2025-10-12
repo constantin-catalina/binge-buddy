@@ -1,7 +1,7 @@
 export const dummyShowsData = [
   {
     _id: "1",
-    title: "Now You See Me",
+    title: "Now You See Me 3",
     backdrop_path: "/now-you-see-me-3.jpg",
     release_date: "2013-05-31",
     genres: [{ name: "Thriller" }, { name: "Mystery" }],
