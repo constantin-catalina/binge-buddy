@@ -10,7 +10,7 @@ const Series = () => {
         overflow-hidden min-h-[80vh]'>
         <BlurCircle top="150px" left="0px"/>
         <BlurCircle bottom="50px" right="50px"/>
-        <h1 className='text-lg font-medium my-4 mb-10'>Trending Movies</h1>
+        <h1 className="text-4xl font-semibold mb-8 sm:mb-10 md:mb-12 lg:mb-14">Trending TV Shows</h1>
         <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
           {dummyShowsData.map((show) => (
             <SeriesCard show={show} key={show._id} />

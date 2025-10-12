@@ -11,6 +11,7 @@ import ActionRail from '../components/ActionRail'
 import AvatarRow from '../components/AvatarRow'
 import CastGrid from '../components/CastGrid'
 import ListCards from '../components/ListCards'
+import Loading from '../components/Loading'
 
 import { mockPeopleWatchingNow } from '../lib/mockPeopleWatchingNow'
 import { mockCast } from '../lib/mockCast'
@@ -81,9 +82,7 @@ const Details = () => {
 
     </div>
   ) : (
-    <div>
-      Loading...
-    </div>
+    <Loading/>
   )
 }
 
