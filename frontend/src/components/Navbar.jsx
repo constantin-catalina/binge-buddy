@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { assets } from '../assets/assets'
-import { Menu as MenuIcon, Search as SearchIcon, TicketPlus, User, X as XIcon } from 'lucide-react'
+import { Menu as MenuIcon, Search as SearchIcon, TicketPlus, User, X as XIcon, LayoutDashboard, LineChart } from 'lucide-react'
 import { useClerk, UserButton, useUser } from '@clerk/clerk-react'
 
 const Navbar = () => {
@@ -43,8 +43,21 @@ const Navbar = () => {
           ) : (
             <UserButton>
               <UserButton.MenuItems>
-                <UserButton.Action label="My watchlist" labelIcon=
-                {<TicketPlus width={15}/>} onClick={() => navigate('/watchlist')}/>
+                <UserButton.Action
+                label="Dashboard"
+                labelIcon={<LayoutDashboard width={15} />}
+                onClick={() => navigate('/dashboard')}
+                />
+                <UserButton.Action
+                label="Progress"
+                labelIcon={<LineChart width={15} />}
+                onClick={() => navigate('/progress')}
+                />
+                <UserButton.Action 
+                label="My watchlist" 
+                labelIcon={<TicketPlus width={15}/>} 
+                onClick={() => navigate('/watchlist')}
+                />
               </UserButton.MenuItems>
             </UserButton>
           )
