@@ -19,6 +19,7 @@ import AddShow from './pages/admin/AddShow'
 import EditShow from './pages/admin/EditShow'
 import AddUser from './pages/admin/AddUser'
 import EditUser from './pages/admin/EditUser'
+import SearchResults from './pages/SearchResults'
 
 const App = () => {
 
@@ -30,6 +31,7 @@ const App = () => {
       {!isAdminRoute && <Navbar/>}
       <Routes>
         <Route path="/" element={<Home/>}/>
+        <Route path="/search" element={<SearchResults/>}/>
         <Route path="/movies" element={<Movies/>}/>
         <Route path="/movies/:id" element={<Details/>}/>
         <Route path="/series" element={<Series/>}/>

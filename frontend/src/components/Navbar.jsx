@@ -7,10 +7,18 @@ import { useClerk, UserButton, useUser } from '@clerk/clerk-react'
 const Navbar = () => {
 
   const [isOpen, setIsOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const {user} = useUser();
   const {openSignIn} = useClerk();
 
   const navigate = useNavigate();
+
+  const handleSearch = (e) => {
+    if(e.key === 'Enter' && searchQuery.trim()) {
+      navigate(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
+      setSearchQuery('');
+    }
+  };
 
   return (
     <div className='fixed top-0 left-0 z-50 w-full flex items-center justify-between px-6 md:px-16 lg:px-36 py-2'>
@@ -34,7 +42,18 @@ const Navbar = () => {
       </div>
 
       <div className='flex items-center gap-8'>
-        <SearchIcon className='max-md:hidden w-6 h-6 cursor-pointer'/>
+        <div className="relative hidden md:flex items-center">
+          <SearchIcon className="w-5 h-5 absolute left-2 text-gray-400"/>
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={handleSearch}
+            placeholder='Search...'
+            className="bg-white/10 text-white placeholder:text-gray-400 pl-8 pr-4
+            py-1.5 rounded-full focus:outline-none w-40 md:w-56"
+          />
+        </div>
         {
           !user ? (
             <button onClick={openSignIn} className='px-4 py-1 sm:px-7 sm:py-2 bg-primary
