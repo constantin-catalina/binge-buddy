@@ -4,6 +4,7 @@ import { FaTv, FaFilm, FaFolder, FaPlay, FaClock, FaHeart, FaComment } from 'rea
 import bgImage from '../assets/september-review.jpg'
 import { useUser } from '@clerk/clerk-react'
 import Loading from '../components/Loading'
+import { Link } from 'react-router-dom'
 
 const UserDashboard = () => {
   const { user, isLoaded } = useUser()
@@ -129,6 +130,14 @@ const UserDashboard = () => {
                   </p>
                   <h3 className="text-3xl font-bold mb-1">{monthStats.firstPlay.show}</h3>
                   <p className="text-lg">{monthStats.firstPlay.episode}</p>
+                </div>
+                <div className="flex-1 flex items-center justify-center mt-6">
+                  <Link
+                    to="/progress"
+                    className="inline-block px-6 py-3 bg-primary hover:bg-primary/90 text-white font-semibold rounded-full transition-transform duration-200"
+                  >
+                    Check your progress
+                  </Link>
                 </div>
               </div>
             </div>
