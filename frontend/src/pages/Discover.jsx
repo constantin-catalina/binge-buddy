@@ -65,10 +65,10 @@ const Section = ({ title, children }) => (
 
 
 const Discover = () => {
-  const [type, setType] = useState("all")      // all | movie | tv
+  const [type, setType] = useState("all")      
 
-  const [released, setReleased] = useState("all") // all | year | Older
-  const [quality, setQuality] = useState("all")   // all | HD | SD | CAM
+  const [released, setReleased] = useState("all") 
+  const [quality, setQuality] = useState("all")   
   const [genres, setGenres] = useState(new Set())
   const [countries, setCountries] = useState(new Set())
 
