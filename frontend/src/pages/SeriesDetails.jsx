@@ -49,6 +49,8 @@ function normalizeShow(raw) {
     vote,
     backdrop,
     poster,
+    number_of_seasons: s.number_of_seasons || 0,
+    number_of_episodes: s.number_of_episodes || 0,
     original: s,
   };
 }
@@ -138,15 +140,11 @@ const SeriesDetails = () => {
 
           <p className="text-gray-400 mt-2 text-sm leading-tight max-w-xl">
             {show.number_of_seasons
-              ? `${show.original.number_of_seasons} Season${
-                  show.original.number_of_seasons > 1 ? 's' : ''
-                } • `
-              : ''}
-            {timeFormat(show.runtime)}
-            {show.runtime ? ' • ' : ''}
+                ? `${show.number_of_seasons} season${show.number_of_seasons > 1 ? 's' : ''} • `
+                : ''}
             {show.year ? `${show.year} • ` : ''}
             {show.genres?.length ? show.genres.join(' | ') : 'Unknown Genre'}
-          </p>
+            </p>
 
           <p className="text-gray-300 mt-3 leading-relaxed">{description}</p>
 

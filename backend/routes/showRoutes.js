@@ -38,7 +38,6 @@ showRouter.post('/import/:type', async (req, res) => {
 
       allMovies.push(...results);
 
-      // ✅ Stop if we reach the requested limit
       if (limit && allMovies.length >= limit) {
         allMovies.length = limit; // Truncate to exact limit
         break;
@@ -67,6 +66,7 @@ showRouter.post('/import/:type', async (req, res) => {
 
           return {
             _id: String(detail.id),
+            _type: 'movie',
             title: detail.title,
             overview: detail.overview || '',
             poster_path: detail.poster_path

@@ -8,6 +8,7 @@ import { serve } from "inngest/express";
 import { inngest, functions } from "./inngest/index.js";
 import showRouter from "./routes/showRoutes.js";
 import tvRouter from "./routes/tvRoutes.js";
+import discoverRoutes from "./routes/discoverRoutes.js";
 
 const app = express();
 const PORT = 3000;
@@ -29,6 +30,8 @@ app.use('/api/inngest', serve({ client: inngest, functions }))
 app.use('/api/show', showRouter);
 
 app.use('/api/tv', tvRouter);
+
+app.use('/api/discover', discoverRoutes);
 
 app.listen(PORT, () => {  
     console.log(`Server is running on http://localhost:${PORT}`);  

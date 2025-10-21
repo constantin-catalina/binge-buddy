@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 const tvShowSchema = new mongoose.Schema(
   {
     _id: { type: String, required: true }, 
+    _type: { type: String, required: true },
     name: { type: String, required: true }, 
     overview: { type: String, required: true },
     poster_path: { type: String, required: true },

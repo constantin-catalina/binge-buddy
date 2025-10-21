@@ -49,6 +49,7 @@ tvRouter.post("/import/:type", async (req, res) => {
 
           return {
             _id: String(detail.id),
+            _type: 'tv',
             name: detail.name,
             overview: detail.overview || "",
             poster_path: detail.poster_path
@@ -96,5 +97,16 @@ tvRouter.post("/import/:type", async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 });
+
+// Delete all TV shows
+tvRouter.delete('/delete-all', async (req, res) => {
+  try {
+    const result = await TvShow.deleteMany({});
+    res.json({ success: true, deleted: result.deletedCount });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 
 export default tvRouter;
