@@ -7,6 +7,7 @@ import { clerkMiddleware } from "@clerk/express";
 import { serve } from "inngest/express";
 import { inngest, functions } from "./inngest/index.js";
 import showRouter from "./routes/showRoutes.js";
+import tvRouter from "./routes/tvRoutes.js";
 
 const app = express();
 const PORT = 3000;
@@ -26,6 +27,8 @@ app.get('/', (req, res) => {
 app.use('/api/inngest', serve({ client: inngest, functions }))
 
 app.use('/api/show', showRouter);
+
+app.use('/api/tv', tvRouter);
 
 app.listen(PORT, () => {  
     console.log(`Server is running on http://localhost:${PORT}`);  

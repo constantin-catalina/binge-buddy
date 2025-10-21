@@ -1,27 +1,79 @@
-import React from 'react'
-import { dummyShowsData } from '../lib/dummyShowsData'
-import MovieCard from '../components/MovieCard'
-import BlurCircle from '../components/BlurCircle'
-import SeriesCard from '../components/SeriesCard'
+import React, { useEffect, useState } from 'react';
+import BlurCircle from '../components/BlurCircle';
+import SeriesCard from '../components/SeriesCard';
+import Loading from '../components/Loading';
 
 const Series = () => {
-  return dummyShowsData.length > 0 ? (
-    <div className='relative my-40 mb-20 px-6 md:px-16 lg:px-40 xl:px-20
-        overflow-hidden min-h-[80vh]'>
-        <BlurCircle top="150px" left="0px"/>
-        <BlurCircle bottom="50px" right="50px"/>
-        <h1 className="text-4xl font-semibold mb-8 sm:mb-10 md:mb-12 lg:mb-14">Trending TV Shows</h1>
-        <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
-          {dummyShowsData.map((show) => (
-            <SeriesCard show={show} key={show._id} />
-          ))}
+  const [shows, setShows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+
+  const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      try {
+        const res = await fetch(`${API_BASE}/api/tv/shows?page=${page}&limit=32`);
+        const json = await res.json();
+        setShows(json.shows || []);
+        setTotalPages(json.pageCount || 1);
+      } catch (error) {
+        console.error('Failed to fetch TV shows:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    load();
+  }, [page, API_BASE]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <Loading />
+      </div>
+    );
+  }
+
+  return shows.length > 0 ? (
+    <div className="relative my-40 mb-20 px-6 md:px-16 lg:px-40 xl:px-20 overflow-hidden min-h-[80vh]">
+      <BlurCircle top="150px" left="0px" />
+      <BlurCircle bottom="50px" right="50px" />
+      <h1 className="text-4xl font-semibold mb-8 sm:mb-10 md:mb-12 lg:mb-14">Trending TV Shows</h1>
+
+      <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
+        {shows.map((show) => (
+          <SeriesCard key={show._id} show={show} />
+        ))}
+      </div>
+
+      {totalPages > 1 && (
+        <div className="flex justify-center mt-8 gap-4">
+          <button
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={page === 1}
+            className="px-4 py-2 rounded bg-gray-700 text-white disabled:opacity-50"
+          >
+            Previous
+          </button>
+          <span className="text-white">{page} / {totalPages}</span>
+          <button
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            disabled={page === totalPages}
+            className="px-4 py-2 rounded bg-gray-700 text-white disabled:opacity-50"
+          >
+            Next
+          </button>
         </div>
+      )}
     </div>
   ) : (
-    <div className='flex flex-col items-center justify-center h-screen'>
-      <h1 className='text-3xl font-bold text-center'>No TV shows available...</h1>
+    <div className="flex flex-col items-center justify-center h-screen">
+      <h1 className="text-3xl font-bold text-center">No TV shows available...</h1>
     </div>
-  )
-}
+  );
+};
 
-export default Series
+export default Series;

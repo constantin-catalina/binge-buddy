@@ -20,6 +20,7 @@ import EditShow from './pages/admin/EditShow'
 import AddUser from './pages/admin/AddUser'
 import EditUser from './pages/admin/EditUser'
 import SearchResults from './pages/SearchResults'
+import SeriesDetails from './pages/SeriesDetails'
 
 const App = () => {
 
@@ -35,7 +36,7 @@ const App = () => {
         <Route path="/movies" element={<Movies/>}/>
         <Route path="/movies/:id" element={<Details/>}/>
         <Route path="/series" element={<Series/>}/>
-        <Route path="/series/:id" element={<Details/>}/>
+        <Route path="/series/:id" element={<SeriesDetails/>}/>
         <Route path="/discover" element={<Discover/>}/>
         <Route path="/watchlist" element={<MyWatchlist/>}/>
         <Route path="/dashboard" element={<UserDashboard/>}/>
