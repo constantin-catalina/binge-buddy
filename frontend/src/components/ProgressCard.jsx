@@ -28,18 +28,11 @@ const timeAgo = (iso) => {
 }
 
 /**
- * Expected item shape:
- * {
- *   id, title,
- *   posterUrl | poster,                    // image url
- *   totalEpisodes, episodesWatched,
- *   plays, minutesWatched, minutesLeft,
- *   rating?,                               // optional
- *   lastWatched: { code, name, at }        // e.g. { code:'1x01', name:'Pilot', at:'2025-09-11T22:56:00' }
- * }
+ * item: { type, title, posterUrl|poster, totalEpisodes, episodesWatched, plays, minutesWatched, minutesLeft, rating, lastWatched }
  */
 const ProgressCard = ({ item, onRemove, onMarkWatched }) => {
   const {
+    type,
     title,
     posterUrl,
     poster,
@@ -52,10 +45,11 @@ const ProgressCard = ({ item, onRemove, onMarkWatched }) => {
     lastWatched = {},
   } = item || {}
 
+  const isMovie = type === "movie"
   const img = posterUrl || poster
-  const percent = totalEpisodes
-    ? clamp(Math.round((episodesWatched / totalEpisodes) * 100), 0, 100)
-    : 0
+  const percent = isMovie
+    ? 100
+    : (totalEpisodes ? clamp(Math.round((episodesWatched / totalEpisodes) * 100), 0, 100) : 0)
 
   const watchedStr = minutesToDHm(minutesWatched)
   const leftStr = minutesToDHm(minutesLeft)
@@ -69,7 +63,6 @@ const ProgressCard = ({ item, onRemove, onMarkWatched }) => {
         {img && <img src={img} alt={title} className="w-full h-full object-cover" />}
       </div>
 
-      {/* Content */}
       <div className="p-3 flex-1 flex flex-col gap-2">
         <div className="flex items-center justify-between gap-3">
           <h3 className="font-semibold line-clamp-2">{title}</h3>
@@ -91,37 +84,50 @@ const ProgressCard = ({ item, onRemove, onMarkWatched }) => {
 
         {/* Compact stats row */}
         <div className="mt-1 flex items-center justify-between text-xs text-gray-300">
+          {!isMovie && (
+            <span className="inline-flex items-center gap-1">
+              <Tv2 className="w-3 h-3" /> {episodesWatched}/{totalEpisodes}
+            </span>
+          )}
           <span className="inline-flex items-center gap-1">
-            <Tv2 className="w-3 h-3" /> {episodesWatched}/{totalEpisodes}
+            <Play className="w-3 h-3" /> {Math.max(1, plays)}
           </span>
-          <span className="inline-flex items-center gap-1">
-            <Play className="w-3 h-3" /> {plays}
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <Clock3 className="w-3 h-3" /> {leftStr} left
-          </span>
+          {!isMovie && (
+            <span className="inline-flex items-center gap-1">
+              <Clock3 className="w-3 h-3" /> {leftStr} left
+            </span>
+          )}
         </div>
 
-        {/* Long description (clamped) */}
+        {/* Description */}
         <p className="mt-1 text-[13px] text-gray-300 leading-relaxed line-clamp-3">
-          Watched <strong>{episodesWatched}</strong> of <strong>{totalEpisodes}</strong> episodes
-          for <strong>{plays}</strong> {plays === 1 ? "play" : "plays"} (<strong>{watchedStr}</strong>)
-          which leaves <strong>{totalEpisodes - episodesWatched}</strong> episodes (<strong>{leftStr}</strong>) left to
-          watch. {lastWatched?.code && lastWatched?.name && (
-            <>Last watched <strong>{lastWatched.code} “{lastWatched.name}”</strong>{lastAgo && <> {lastAgo}</>} {lastWhen && <> on <strong>{lastWhen}</strong></>}.</>
+          {isMovie ? (
+            <>Watched <strong>{Math.max(1, plays)}</strong> play{Math.max(1, plays) === 1 ? "" : "s"} (<strong>{watchedStr}</strong>).</>
+          ) : (
+            <>
+              Watched <strong>{episodesWatched}</strong> of <strong>{totalEpisodes}</strong> episodes
+              for <strong>{plays}</strong> {plays === 1 ? "play" : "plays"} (<strong>{watchedStr}</strong>)
+              which leaves <strong>{totalEpisodes - episodesWatched}</strong> episodes (<strong>{leftStr}</strong>) left to watch.{" "}
+              {lastWatched?.code && lastWatched?.name && (
+                <>Last watched <strong>{lastWatched.code} “{lastWatched.name}”</strong>{lastAgo && <> {lastAgo}</>} {lastWhen && <> on <strong>{lastWhen}</strong></>}.</>
+              )}
+            </>
           )}
         </p>
 
-        {/* Actions (optional, same feel as WatchlistCard) */}
+        {/* Actions */}
         <div className="mt-auto flex items-center justify-end gap-1">
-          <button
-            onClick={() => onMarkWatched?.(item)}
-            className="rounded-full bg-primary hover:bg-primary/90 px-3 py-1.5 text-xs"
-          >
-            <span className="inline-flex items-center gap-1">
-              <Check className="w-3 h-3" /> Mark watched
-            </span>
-          </button>
+          {/* Hide “Mark watched” for movies */}
+          {!isMovie && (
+            <button
+              onClick={() => onMarkWatched?.(item)}
+              className="rounded-full bg-primary hover:bg-primary/90 px-3 py-1.5 text-xs"
+            >
+              <span className="inline-flex items-center gap-1">
+                <Check className="w-3 h-3" /> Mark watched
+              </span>
+            </button>
+          )}
           <button
             onClick={() => onRemove?.(item)}
             className="rounded-full bg-white/10 hover:bg-white/15 px-3 py-1.5 text-xs"

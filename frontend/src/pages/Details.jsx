@@ -18,12 +18,14 @@ import { mockPeopleWatchingNow } from '../lib/mockPeopleWatchingNow'
 import { mockCast } from '../lib/mockCast'
 import { mockLists } from '../lib/mockLists'
 
-// 🔗 Watchlist API helpers
+// Watchlist API helpers
 import {
   watchlistStatus,
   addToWatchlist,
   removeFromWatchlist,
 } from '../lib/watchlistApi'
+
+import { addToHistory } from '../lib/progressApi'
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000'
 
@@ -123,10 +125,30 @@ const Details = () => {
 
   // Handle ActionRail clicks
   const handleAction = async (actionId) => {
-    if (actionId !== 'watchlist') {
-      // other actions like check-in/favorite can go here
-      return
+    if (actionId === 'history') {
+      if (!isSignedIn || !movie?._id) return toast('Please sign in.')
+      // Build a MOVIE payload for progress
+      const payload = {
+        itemId: String(movie._id),
+        type: 'movie',
+        title: movie.title,
+        poster: movie.poster || movie.backdrop,
+        year: movie.year,
+        runtime: movie.runtime,                 // minutes
+        genres: movie.genres,
+        rating: movie.vote,
+        incPlays: 1,                            // count as a play
+        incMinutes: movie.runtime || 0,         // add runtime to minutesWatched
     }
+    try {
+      await addToHistory(payload, getToken)
+      toast.success('Added to history')
+    } catch {
+      toast.error('Could not add to history')
+    }
+    return
+  }
+  if (actionId !== 'watchlist') return
     if (!isSignedIn) {
       toast('Please sign in to use your watchlist.')
       return

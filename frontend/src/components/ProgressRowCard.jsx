@@ -2,7 +2,6 @@
 import React from "react"
 import { Play, Clock3, Tv2, Check, X, Star } from "lucide-react"
 
-/* helpers */
 const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n))
 
 const minutesToDHm = (mins = 0) => {
@@ -34,25 +33,22 @@ const timeAgo = (iso) => {
 
 const ProgressBar = ({ value }) => (
   <div className="h-3 w-full rounded-full bg-white/10 overflow-hidden">
-    <div
-      className="h-full bg-primary"
-      style={{ width: `${clamp(value, 0, 100)}%` }}
-    />
+    <div className="h-full bg-primary" style={{ width: `${clamp(value, 0, 100)}%` }} />
   </div>
 )
 
 /**
  * Expected item shape:
  * {
- *   id, title, posterUrl,
+ *   id, type, title, posterUrl,
  *   totalEpisodes, episodesWatched,
  *   plays, minutesWatched, minutesLeft,
- *   rating?,                           // optional number
- *   lastWatched?: { code, name, at }   // ISO datetime
+ *   rating?, lastWatched?
  * }
  */
 const ProgressRowCard = ({ item, onMarkWatched, onRemove }) => {
   const {
+    type,
     title,
     posterUrl,
     totalEpisodes = 0,
@@ -64,9 +60,10 @@ const ProgressRowCard = ({ item, onMarkWatched, onRemove }) => {
     lastWatched,
   } = item || {}
 
-  const percent = totalEpisodes
-    ? clamp(Math.round((episodesWatched / totalEpisodes) * 100), 0, 100)
-    : 0
+  const isMovie = type === "movie"
+  const percent = isMovie
+    ? 100
+    : (totalEpisodes ? clamp(Math.round((episodesWatched / totalEpisodes) * 100), 0, 100) : 0)
 
   const watchedStr = minutesToDHm(minutesWatched)
   const leftStr = minutesToDHm(minutesLeft)
@@ -80,10 +77,9 @@ const ProgressRowCard = ({ item, onMarkWatched, onRemove }) => {
         src={posterUrl}
         alt={title}
         className="w-24 h-32 object-cover rounded-xl border border-white/10 flex-none"
-        onError={(e) => (e.target.src = "/fallback.jpg")} // optional fallback
+        onError={(e) => (e.target.src = "/fallback.jpg")}
       />
 
-      {/* Middle content */}
       <div className="flex-1 min-w-0">
         {/* Title + rating */}
         <div className="flex items-start justify-between gap-3">
@@ -102,40 +98,52 @@ const ProgressRowCard = ({ item, onMarkWatched, onRemove }) => {
           <span className="text-primary font-bold">{percent}%</span>
         </div>
 
-        {/* Long stats sentence */}
+        {/* Summary */}
         <p className="mt-3 text-gray-300 text-sm md:text-base leading-relaxed">
-          Watched <strong>{episodesWatched}</strong> of <strong>{totalEpisodes}</strong> episodes
-          for <strong>{plays}</strong> {plays === 1 ? "play" : "plays"} (<strong>{watchedStr}</strong>)
-          which leaves <strong>{totalEpisodes - episodesWatched}</strong> episodes (<strong>{leftStr}</strong>) left to watch.
-          {lastWatched?.code && lastWatched?.name && (
-            <> Last watched <strong>{lastWatched.code} “{lastWatched.name}”</strong>
-              {lastAgo && <> {lastAgo}</>}
-              {lastWhen && <> on <strong>{lastWhen}</strong></>}.
+          {isMovie ? (
+            <>Watched <strong>{Math.max(1, plays)}</strong> play{Math.max(1, plays) === 1 ? "" : "s"} (<strong>{watchedStr}</strong>).</>
+          ) : (
+            <>
+              Watched <strong>{episodesWatched}</strong> of <strong>{totalEpisodes}</strong> episodes
+              for <strong>{plays}</strong> {plays === 1 ? "play" : "plays"} (<strong>{watchedStr}</strong>)
+              which leaves <strong>{totalEpisodes - episodesWatched}</strong> episodes (<strong>{leftStr}</strong>) left to watch.
+              {lastWatched?.code && lastWatched?.name && (
+                <> Last watched <strong>{lastWatched.code} “{lastWatched.name}”</strong>
+                  {lastAgo && <> {lastAgo}</>}
+                  {lastWhen && <> on <strong>{lastWhen}</strong></>}.</>
+              )}
             </>
           )}
         </p>
 
         {/* Compact facts row */}
         <div className="mt-3 flex flex-wrap items-center gap-4 text-xs text-gray-300">
+          {!isMovie && (
+            <span className="inline-flex items-center gap-1">
+              <Tv2 className="w-3 h-3" /> {episodesWatched}/{totalEpisodes}
+            </span>
+          )}
           <span className="inline-flex items-center gap-1">
-            <Tv2 className="w-3 h-3" /> {episodesWatched}/{totalEpisodes}
+            <Play className="w-3 h-3" /> {Math.max(1, plays)}
           </span>
-          <span className="inline-flex items-center gap-1">
-            <Play className="w-3 h-3" /> {plays}
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <Clock3 className="w-3 h-3" /> {leftStr} left
-          </span>
+          {!isMovie && (
+            <span className="inline-flex items-center gap-1">
+              <Clock3 className="w-3 h-3" /> {leftStr} left
+            </span>
+          )}
         </div>
 
         {/* Actions */}
         <div className="mt-3 flex items-center gap-2">
-          <button
-            onClick={() => onMarkWatched?.(item)}
-            className="inline-flex items-center gap-2 rounded-full bg-primary hover:bg-primary/90 px-3 py-1.5 text-sm"
-          >
-            <Check className="w-4 h-4" /> Mark watched
-          </button>
+          {/* No “Mark watched” for movies */}
+          {!isMovie && (
+            <button
+              onClick={() => onMarkWatched?.(item)}
+              className="inline-flex items-center gap-2 rounded-full bg-primary hover:bg-primary/90 px-3 py-1.5 text-sm"
+            >
+              <Check className="w-4 h-4" /> Mark watched
+            </button>
+          )}
           <button
             onClick={() => onRemove?.(item)}
             className="ml-auto inline-flex items-center gap-2 rounded-full bg-white/10 hover:bg-white/15 px-3 py-1.5 text-sm"

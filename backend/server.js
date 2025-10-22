@@ -11,6 +11,7 @@ import tvRouter from "./routes/tvRoutes.js";
 import discoverRoutes from "./routes/discoverRoutes.js";
 import searchRoutes from "./routes/search.js";
 import watchlistRoutes from "./routes/watchlist.js";
+import progressRoutes from "./routes/progress.js";
 
 const app = express();
 const PORT = 3000;
@@ -42,6 +43,8 @@ app.use('/api/discover', discoverRoutes);
 app.use('/api/search', searchRoutes);
 
 app.use('/api/watchlist', watchlistRoutes);
+
+app.use("/api/progress", progressRoutes);
 
 app.listen(PORT, () => {  
     console.log(`Server is running on http://localhost:${PORT}`);  
