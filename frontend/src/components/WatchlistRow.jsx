@@ -16,11 +16,16 @@ const ProgressBar = ({ value }) => (
 
 const WatchlistRow = ({ item, onPlay, onRemove, onMarkWatched }) => {
   const isMovie = item.type === "movie"
-  const meta = isMovie
+  
+  const seasonsLabel = !isMovie && item.seasons
+    ? `${item.seasons} season${item.seasons > 1 ? 's' : ''}`
+    : null
+  
+    const meta = isMovie
     ? `${item.year} • ${item.genres?.join(" | ")} • ${timeFormat(item.runtime)}`
-    : `${item.year} • ${item.genres?.join(" | ")} • ${item.episodesWatched ?? 0}/${item.episodesTotal} eps`
-
-  return (
+    : `${item.year} • ${item.genres?.join(" | ")}${seasonsLabel ? ` • ${seasonsLabel}` : ""}`
+  
+    return (
     <div className="rounded-2xl bg-white/5 border border-white/10 p-3 sm:p-4 flex gap-4">
       <img
         src={item.poster}

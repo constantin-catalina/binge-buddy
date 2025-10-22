@@ -15,6 +15,7 @@ const mapDbToItem = (w) => ({
   runtime: w.runtime,
   genres: w.genres || [],
   rating: w.rating,
+  seasons: w.seasons,
   progress: w.progress || 0,
   addedAt: w.addedAt,
 });

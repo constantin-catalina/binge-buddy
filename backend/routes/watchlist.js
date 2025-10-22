@@ -34,6 +34,7 @@ router.post("/", async (req, res) => {
     runtime,
     genres = [],
     rating,
+    seasons,
     progress = 0,
   } = req.body || {};
 
@@ -47,8 +48,7 @@ router.post("/", async (req, res) => {
       { userId, itemId },
       {
         $set: {
-          type, title, poster, year, runtime, genres, rating,
-          // If you want "bump to top" on repeat add:
+          type, title, poster, year, runtime, genres, rating, seasons,
           addedAt: now,
         },
         $setOnInsert: { userId, progress },

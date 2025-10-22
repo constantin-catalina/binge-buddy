@@ -10,9 +10,14 @@ const timeFormat = (mins) => {
 
 const WatchlistCard = ({ item, onRemove, onMarkWatched }) => {
   const isMovie = item.type === "movie"
+  
+  const seasonsLabel = !isMovie && item.seasons
+    ? `${item.seasons} season${item.seasons > 1 ? 's' : ''}`
+    : null
+
   const meta = isMovie
     ? `${item.year} • ${item.genres?.[0] ?? ""} • ${timeFormat(item.runtime)}`
-    : `${item.year} • ${item.genres?.[0] ?? ""} • ${item.episodesWatched ?? 0}/${item.episodesTotal} eps`
+    : `${item.year} • ${item.genres?.[0] ?? ""}${seasonsLabel ? ` • ${seasonsLabel}` : ""}`
 
   return (
     <div className="rounded-2xl bg-white/5 border border-white/10 overflow-hidden flex flex-col">

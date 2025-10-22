@@ -10,6 +10,7 @@ const watchlistItemSchema = new mongoose.Schema({
   runtime: { type: Number },
   genres: [String],
   rating: { type: Number },
+  seasons: { type: Number },
   progress: { type: Number, default: 0 },
   addedAt: { type: Date, default: Date.now },
 }, { timestamps: true });
