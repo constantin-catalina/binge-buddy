@@ -45,7 +45,10 @@ const FeaturedSection = () => {
         <BlurCircle top='0' right='-80px' />
         <p className='text-gray-300 font-medium text-lg'>Top Movies</p>
         <button
-          onClick={() => navigate('/movies')}
+          onClick={() => {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            navigate('/movies')
+          }}
           className='group flex items-center gap-2 text-sm text-gray-300 cursor-pointer'
         >
           Show more
@@ -63,7 +66,10 @@ const FeaturedSection = () => {
         <BlurCircle top='0' right='-80px' />
         <p className='text-gray-300 font-medium text-lg'>Top TV Shows</p>
         <button
-          onClick={() => navigate('/series')}
+          onClick={() => {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            navigate('/series')
+          }}
           className='group flex items-center gap-2 text-sm text-gray-300 cursor-pointer'
         >
           Show more
