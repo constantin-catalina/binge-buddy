@@ -11,41 +11,61 @@ router.get("/", async (req, res) => {
   res.json({ items });
 });
 
-// POST add to history (idempotent upsert + optional increments)
+// POST add to history (idempotent upsert + optional increments/sets)
 router.post("/", async (req, res) => {
   const userId = req.auth.userId;
   const {
     itemId, type, title, poster, year, runtime, genres = [], rating,
-    // optional progress updates:
     incPlays = 1,
     incMinutes = 0,
-    tv: {
-      episodesTotal,
-      incEpisode = false,
-      last = null,   // { code, name, at }
-    } = {}
+    tv = {}
   } = req.body || {};
 
   if (!itemId || !type || !title) {
     return res.status(400).json({ error: "itemId, type, and title are required" });
   }
 
-  const $set = { type, title, poster, year, runtime, genres, rating };
-  if (typeof episodesTotal === "number") $set.episodesTotal = episodesTotal;
+  // Accept either episodesTotal or seasonsTotal (alias), plus ways to set/increment watched
+  const {
+    episodesTotal,
+    seasonsTotal,                // alias for episodesTotal when you store "seasons" as "episodes"
+    incEpisode = false,
+    incEpisodes,                 // number to increment watched by
+    setEpisodesWatched,          // absolute setter
+    last = null,                 // { code, name, at }
+  } = tv;
 
-  const update = {
-    $set,
-    $setOnInsert: { userId, addedAt: new Date() },
-    $inc: { plays: incPlays, minutesWatched: incMinutes },
-  };
-  if (incEpisode) update.$inc.episodesWatched = 1;
-  if (last && (last.code || last.name || last.at)) update.$set.lastWatched = last;
+  const resolvedTotal =
+    typeof episodesTotal === "number"
+      ? episodesTotal
+      : (typeof seasonsTotal === "number" ? seasonsTotal : undefined);
+
+  const $set = { type, title, poster, year, runtime, genres, rating };
+  if (typeof resolvedTotal === "number") $set.episodesTotal = resolvedTotal;
+  if (last && (last.code || last.name || last.at)) $set.lastWatched = last;
+
+  // Build update
+  const $inc = { plays: incPlays, minutesWatched: incMinutes };
+
+  // If client wants to set an absolute value, prefer $set over $inc
+  if (typeof setEpisodesWatched === "number") {
+    $set.episodesWatched = setEpisodesWatched;
+  } else if (typeof incEpisodes === "number") {
+    $inc.episodesWatched = incEpisodes;
+  } else if (incEpisode) {
+    $inc.episodesWatched = 1;
+  }
 
   const item = await ProgressItem.findOneAndUpdate(
     { userId, itemId },
-    update,
+    {
+      $set,
+      $setOnInsert: { userId, addedAt: new Date() },
+      $inc,
+    },
     { upsert: true, new: true }
   );
+
   res.status(201).json({ item });
 });
 

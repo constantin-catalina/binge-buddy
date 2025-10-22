@@ -9,6 +9,9 @@ import { listProgress } from "../lib/progressApi"
 
 const CONTROL_H = "h-12"
 
+// 👇 change this if you prefer another default for TV episodes with unknown runtime
+const DEFAULT_TV_RUNTIME_MIN = 45
+
 // minutes -> "1d 2h 3m"
 const minutesToDHm = (mins = 0) => {
   const d = Math.floor(mins / 1440)
@@ -23,8 +26,8 @@ const minutesToDHm = (mins = 0) => {
 
 const Progress = () => {
   const { getToken } = useAuth()
-  const [kind, setKind] = useState("all")         // "all" | "movie" | "tv"
-  const [status, setStatus] = useState("all")     // "all" | "inprogress" | "completed"
+  const [kind, setKind] = useState("all")        // all | movie | tv
+  const [status, setStatus] = useState("all")    // all | inprogress | completed
   const [query, setQuery] = useState("")
   const [sort, setSort] = useState("progress-desc")
   const [view, setView] = useState("grid")
@@ -40,13 +43,33 @@ const Progress = () => {
         if (ignore) return
         const mapped = (items || []).map(w => {
           const isMovie = w.type === "movie"
-          const runtime = Number(w.runtime || 0)
 
-          // Movies are considered completed (1/1), 100% watched, 0m left
-          const totalEpisodes   = isMovie ? 1 : (w.episodesTotal || 0)
-          const episodesWatched = isMovie ? 1 : (w.episodesWatched || 0)
-          const minutesLeft     = isMovie ? 0 : (w.runtime ? Math.max(0, (totalEpisodes - episodesWatched) * w.runtime) : 0)
-          const minutesWatched  = Number(w.minutesWatched || (isMovie ? runtime : 0))
+          // ✅ use an effective runtime (fallback for TV)
+          const runtimeRaw = Number(w.runtime || 0)
+          const runtime = isMovie
+            ? (runtimeRaw > 0 ? runtimeRaw : 0)               // movies without runtime -> 0 (won't be used for "left")
+            : (runtimeRaw > 0 ? runtimeRaw : DEFAULT_TV_RUNTIME_MIN)
+
+          const totalEpisodes   = isMovie ? 1 : Number(w.episodesTotal || 0)
+          const episodesWatched = isMovie ? 1 : Number(w.episodesWatched || 0)
+
+          // ✅ compute minutes on the client to avoid 0s from the DB
+          const minutesWatched = isMovie
+            ? (runtime || Number(w.minutesWatched || 0) || 0)
+            : (episodesWatched * runtime)
+
+          const minutesLeft = isMovie
+            ? 0
+            : Math.max(0, (totalEpisodes - episodesWatched) * runtime)
+
+          const watchedPct = isMovie
+            ? 100
+            : (totalEpisodes > 0 ? Math.round((episodesWatched / totalEpisodes) * 100) : 0)
+
+          const _completed = watchedPct >= 100
+          const _status =
+            _completed ? "completed"
+            : (episodesWatched > 0 ? "inprogress" : "all")
 
           return {
             id: String(w.itemId),
@@ -61,6 +84,8 @@ const Progress = () => {
             rating: w.rating,
             genres: w.genres || [],
             lastWatched: w.lastWatched || null,
+            watchedPct,
+            status: _status,
           }
         })
         setBaseItems(mapped)
@@ -78,13 +103,8 @@ const Progress = () => {
     if (kind !== "all") list = list.filter(i => i.type === kind)
 
     if (status !== "all") {
-      list = list.filter(i => {
-        // for movies we set totalEpisodes=1, episodesWatched=1 so they count as completed
-        const done = i.episodesWatched >= i.totalEpisodes
-        if (status === "completed")   return done
-        if (status === "inprogress")  return i.episodesWatched > 0 && !done
-        return true
-      })
+      if (status === "completed")   list = list.filter(i => i.watchedPct >= 100)
+      if (status === "inprogress")  list = list.filter(i => i.watchedPct > 0 && i.watchedPct < 100)
     }
 
     if (query.trim()) {
@@ -93,14 +113,10 @@ const Progress = () => {
     }
 
     list.sort((a, b) => {
-      if (sort === "progress-desc") {
-        const pa = (a.episodesWatched || 0) / Math.max(1, a.totalEpisodes || 1)
-        const pb = (b.episodesWatched || 0) / Math.max(1, b.totalEpisodes || 1)
-        return pb - pa
-      }
-      if (sort === "timeleft-asc") return (a.minutesLeft || 0) - (b.minutesLeft || 0)
-      if (sort === "title-asc")    return a.title.localeCompare(b.title)
-      if (sort === "title-desc")   return b.title.localeCompare(a.title)
+      if (sort === "progress-desc") return (b.watchedPct || 0) - (a.watchedPct || 0)
+      if (sort === "timeleft-asc")  return (a.minutesLeft || 0) - (b.minutesLeft || 0)
+      if (sort === "title-asc")     return a.title.localeCompare(b.title)
+      if (sort === "title-desc")    return b.title.localeCompare(a.title)
       return 0
     })
 
@@ -149,19 +165,14 @@ const Progress = () => {
                 key={item.id}
                 item={{
                   posterUrl: item.posterUrl,
-                  percent: (item.type === "movie")
-                    ? 100
-                    : (item.episodesWatched / Math.max(1, item.totalEpisodes)) * 100,
+                  percent: item.watchedPct,
                   accent: "bg-primary",
                   episode: item.type === "movie" ? null : (item.lastWatched && {
                     code: item.lastWatched.code,
                     name: item.lastWatched.name,
                   }),
                   showTitle: item.title,
-                  watchedLabel:
-                    item.type === "movie" || item.episodesWatched >= item.totalEpisodes
-                      ? "100% watched!"
-                      : undefined,
+                  watchedLabel: item.watchedPct >= 100 ? "100% watched!" : undefined,
                 }}
               />
             ))}
