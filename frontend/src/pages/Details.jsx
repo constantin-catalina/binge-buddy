@@ -1,6 +1,8 @@
 import React, { useEffect, useState, useMemo } from 'react'
 import { useParams } from 'react-router-dom'
 import { Star as StarIcon } from 'lucide-react'
+import { useAuth, useUser } from '@clerk/clerk-react'
+import { toast } from 'sonner'
 
 import BlurCircle from '../components/BlurCircle'
 import TrailerButton from '../components/TrailerButton'
@@ -16,27 +18,26 @@ import { mockPeopleWatchingNow } from '../lib/mockPeopleWatchingNow'
 import { mockCast } from '../lib/mockCast'
 import { mockLists } from '../lib/mockLists'
 
+// 🔗 Watchlist API helpers
+import {
+  watchlistStatus,
+  addToWatchlist,
+  removeFromWatchlist,
+} from '../lib/watchlistApi'
+
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000'
 
+// Normalize DB/TMDB movie shapes to what the page needs
 function normalizeMovie(raw) {
-  // Accept either { movie: {...} } or {...}
   const m = raw?.movie ?? raw ?? {}
-
-  // Support both DB and TMDB field names
   const title = m.title || m.name || 'Untitled'
   const runtime = Number(m.runtime || m.episode_run_time?.[0] || 0)
   const releaseDate = m.release_date || m.first_air_date || ''
   const year = releaseDate ? String(releaseDate).split('-')[0] : ''
-  // genres can be [{id,name}] or ["Action","Drama"]
-  const genres =
-    Array.isArray(m.genres)
-      ? (typeof m.genres[0] === 'string'
-          ? m.genres
-          : m.genres.map(g => g?.name).filter(Boolean))
-      : []
+  const genres = Array.isArray(m.genres)
+    ? (typeof m.genres[0] === 'string' ? m.genres : m.genres.map(g => g?.name).filter(Boolean))
+    : []
   const vote = Number(m.vote_average ?? m.rating ?? 0)
-
-  // Images (prefer backdrop, fallback to poster, then placeholder)
   const backdrop = m.backdrop_path || m.poster_path || m.image || ''
   const poster = m.poster_path || m.backdrop_path || m.image || ''
 
@@ -60,20 +61,22 @@ const Details = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
+  // 👇 watchlist state
+  const { getToken } = useAuth()
+  const { isSignedIn } = useUser()
+  const [inWatchlist, setInWatchlist] = useState(false)
+  const [wlBusy, setWlBusy] = useState(false)
+
+  // Load the movie
   useEffect(() => {
     let isMounted = true
     const ctrl = new AbortController()
-
-    async function load() {
+    ;(async () => {
       setLoading(true)
       setError('')
       try {
         const res = await fetch(`${API_BASE}/api/show/movies/${id}`, { signal: ctrl.signal })
-        if (!res.ok) {
-          // If you also exposed a TMDB passthrough like /api/show/tmdb/movies/:id,
-          // you can optionally fall back to it here.
-          throw new Error(`Failed to fetch movie (${res.status})`)
-        }
+        if (!res.ok) throw new Error(`Failed to fetch movie (${res.status})`)
         const json = await res.json()
         if (isMounted) setMovie(normalizeMovie(json))
       } catch (e) {
@@ -81,31 +84,89 @@ const Details = () => {
       } finally {
         if (isMounted) setLoading(false)
       }
-    }
-
-    load()
-    return () => {
-      isMounted = false
-      ctrl.abort()
-    }
+    })()
+    return () => { isMounted = false; ctrl.abort() }
   }, [id])
 
+  // When we have a movie, check if it's already in the user's watchlist
+  useEffect(() => {
+    let ignore = false
+    ;(async () => {
+      if (!isSignedIn || !movie?._id) return
+      try {
+        const { exists } = await watchlistStatus(String(movie._id), getToken)
+        if (!ignore) setInWatchlist(!!exists)
+      } catch {
+        // ignore
+      }
+    })()
+    return () => { ignore = true }
+  }, [isSignedIn, movie?._id, getToken])
+
+  // Build the payload for addToWatchlist()
+  const watchlistPayload = useMemo(() => {
+    if (!movie) return null
+    return {
+      itemId: String(movie._id || ''),
+      type: 'movie',
+      title: movie.title || 'Untitled',
+      poster:
+        movie.poster ||
+        movie.backdrop ||
+        (movie.original?.poster_path ? `https://image.tmdb.org/t/p/w500${movie.original.poster_path}` : ''),
+      year: movie.year || undefined,
+      runtime: movie.runtime,
+      genres: Array.isArray(movie.genres) ? movie.genres : [],
+      rating: typeof movie.vote === 'number' ? movie.vote : undefined,
+    }
+  }, [movie])
+
+  // Handle ActionRail clicks
+  const handleAction = async (actionId) => {
+    if (actionId !== 'watchlist') {
+      // other actions like check-in/favorite can go here
+      return
+    }
+    if (!isSignedIn) {
+      toast('Please sign in to use your watchlist.')
+      return
+    }
+    if (!watchlistPayload?.itemId) return
+
+    setWlBusy(true)
+    const next = !inWatchlist
+    setInWatchlist(next) // optimistic
+
+    try {
+      if (next) {
+        await addToWatchlist(watchlistPayload, getToken)
+        toast.success('Added to your watchlist')
+      } else {
+        await removeFromWatchlist(watchlistPayload.itemId, getToken)
+        toast('Removed from your watchlist')
+      }
+    } catch (e) {
+      setInWatchlist(!next) // revert
+      toast.error('Could not update watchlist')
+    } finally {
+      setWlBusy(false)
+    }
+  }
+
+  // Description
   const description = useMemo(() => {
-    // If you have descriptions in DB, prefer movie.original.overview
-    return (
-      movie?.original?.overview ||
-      mockDescriptions[movie?._id] ||
-      'No description available.'
-    )
+    return movie?.original?.overview || mockDescriptions[movie?._id] || 'No description available.'
   }, [movie])
 
   if (loading) return <Loading/>
-  if (error) return (
-    <div className='px-6 md:px-16 lg:px-40 py-20'>
-      <h1 className='text-2xl font-semibold mb-3'>Something went wrong</h1>
-      <p className='text-gray-400'>{error}</p>
-    </div>
-  )
+  if (error) {
+    return (
+      <div className='px-6 md:px-16 lg:px-40 py-20'>
+        <h1 className='text-2xl font-semibold mb-3'>Something went wrong</h1>
+        <p className='text-gray-400'>{error}</p>
+      </div>
+    )
+  }
   if (!movie) return <Loading/>
 
   return (
@@ -120,7 +181,7 @@ const Details = () => {
 
         <div className='relative flex flex-col gap-3'>
           <BlurCircle top='-100px' left='-100px'/>
-          {/* Language tag if you store it: movie.original_language */}
+
           {movie.original?.original_language && (
             <p className='text-primary uppercase tracking-wide'>
               {movie.original.original_language}
@@ -147,7 +208,14 @@ const Details = () => {
           <TrailerButton onClick={() => { console.log('open trailer modal') }} />
         </div>
 
-        <ActionRail onAction={(aid) => console.log('action:', aid)} />
+        {/* 👉 This is where the Add to Watchlist click is handled */}
+        <ActionRail
+          onAction={handleAction}
+          // If you applied the optional styling props in ActionRail,
+          // these will make the "Add to Watchlist" row show active/loading:
+          watchlistActive={inWatchlist}
+          watchlistLoading={wlBusy}
+        />
       </div>
 
       <AvatarRow

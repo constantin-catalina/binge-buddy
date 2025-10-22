@@ -49,7 +49,6 @@ export const getMovieById = async (req, res) => {
   }
 };
 
-// (kept) Example: TMDB "now playing" passthrough
 export const getMovies = async (req, res) => {
   try {
     const { data } = await axios.get(`https://api.themoviedb.org/3/movie/now_playing`, {

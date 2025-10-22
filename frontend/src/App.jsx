@@ -51,6 +51,7 @@ const App = () => {
           <Route path="edit-users/:id" element={<EditUser/>}/>
         </Route>
       </Routes>
+      <Toaster richColors position="top-right" />
       {!isAdminRoute && <Footer/>}
     </>
   )
