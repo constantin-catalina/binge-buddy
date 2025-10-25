@@ -1,18 +1,15 @@
-import React, { useEffect, useMemo, useState } from "react"
+import React, { use, useEffect, useMemo, useState } from "react"
 import BlurCircle from "../components/BlurCircle"
 import ProgressToolbar from "../components/ProgressToolbar"
 import ProgressGridCard from "../components/ProgressGridCard"
 import ProgressRowCard from "../components/ProgressRowCard"
 import { CheckCircle2, Clock3, Tv } from "lucide-react"
 import { useAuth } from "@clerk/clerk-react"
-import { listProgress } from "../lib/progressApi"
+import { listProgress, removeProgress } from "../lib/progressApi"
 
 const CONTROL_H = "h-12"
-
-// 👇 change this if you prefer another default for TV episodes with unknown runtime
 const DEFAULT_TV_RUNTIME_MIN = 45
 
-// minutes -> "1d 2h 3m"
 const minutesToDHm = (mins = 0) => {
   const d = Math.floor(mins / 1440)
   const h = Math.floor((mins % 1440) / 60)
@@ -30,10 +27,14 @@ const Progress = () => {
   const [status, setStatus] = useState("all")    // all | inprogress | completed
   const [query, setQuery] = useState("")
   const [sort, setSort] = useState("progress-desc")
-  const [view, setView] = useState("grid")
+  const [view, setView] = useState(() => localStorage.getItem("progress:view") || "list")
   const [baseItems, setBaseItems] = useState([])
   const [loading, setLoading] = useState(true)
 
+  useEffect(() => {
+    localStorage.setItem("progress:view", view)
+  }, [view])
+  
   useEffect(() => {
     let ignore = false
     ;(async () => {
@@ -43,17 +44,14 @@ const Progress = () => {
         if (ignore) return
         const mapped = (items || []).map(w => {
           const isMovie = w.type === "movie"
-
-          // ✅ use an effective runtime (fallback for TV)
           const runtimeRaw = Number(w.runtime || 0)
           const runtime = isMovie
-            ? (runtimeRaw > 0 ? runtimeRaw : 0)               // movies without runtime -> 0 (won't be used for "left")
+            ? (runtimeRaw > 0 ? runtimeRaw : 0)
             : (runtimeRaw > 0 ? runtimeRaw : DEFAULT_TV_RUNTIME_MIN)
 
           const totalEpisodes   = isMovie ? 1 : Number(w.episodesTotal || 0)
           const episodesWatched = isMovie ? 1 : Number(w.episodesWatched || 0)
 
-          // ✅ compute minutes on the client to avoid 0s from the DB
           const minutesWatched = isMovie
             ? (runtime || Number(w.minutesWatched || 0) || 0)
             : (episodesWatched * runtime)
@@ -96,6 +94,20 @@ const Progress = () => {
     return () => { ignore = true }
   }, [getToken])
 
+  // 👉 Remove handler (optimistic)
+  const handleRemove = async (item) => {
+    const ok = window.confirm(`Remove "${item.title}" from progress?`)
+    if (!ok) return
+
+    setBaseItems(curr => curr.filter(i => i.id !== item.id))
+    try {
+      await removeProgress(item.id, getToken)
+    } catch (err) {
+      console.error("Failed to remove:", err)
+      // (Optional) refetch; or show a toast and revert if you keep a copy of prev state
+    }
+  }
+
   // Filters / search / sort
   const filteredSorted = useMemo(() => {
     let list = [...baseItems]
@@ -123,7 +135,6 @@ const Progress = () => {
     return list
   }, [baseItems, kind, status, query, sort])
 
-  // Top stats
   const totalShows = filteredSorted.length
   const totalMinutesLeft = filteredSorted.reduce((s, i) => s + (i.minutesLeft || 0), 0)
   const totalMinutesWatched = filteredSorted.reduce((s, i) => s + (i.minutesWatched || 0), 0)
@@ -163,7 +174,10 @@ const Progress = () => {
             {filteredSorted.map(item => (
               <ProgressGridCard
                 key={item.id}
+                onRemove={handleRemove}
                 item={{
+                  id: item.id,
+                  title: item.title,
                   posterUrl: item.posterUrl,
                   percent: item.watchedPct,
                   accent: "bg-primary",
@@ -180,7 +194,11 @@ const Progress = () => {
         ) : (
           <div className="flex flex-col gap-6">
             {filteredSorted.map(item => (
-              <ProgressRowCard key={item.id} item={item} />
+              <ProgressRowCard
+                key={item.id}
+                item={item}
+                onRemove={handleRemove}
+              />
             ))}
           </div>
         )}
