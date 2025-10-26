@@ -1,121 +1,145 @@
-import React, { useEffect, useState, useMemo } from 'react'
-import { useParams } from 'react-router-dom'
-import { Star as StarIcon } from 'lucide-react'
-import { useAuth, useUser } from '@clerk/clerk-react'
-import { toast } from 'sonner'
+import React, { useEffect, useState, useMemo } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { Star as StarIcon } from 'lucide-react';
+import { useAuth, useUser } from '@clerk/clerk-react';
+import { toast } from 'sonner';
 
-import BlurCircle from '../components/BlurCircle'
-import TrailerButton from '../components/TrailerButton'
-import ActionRail from '../components/ActionRail'
-import AvatarRow from '../components/AvatarRow'
-import CastGrid from '../components/CastGrid'
-import ListCards from '../components/ListCards'
-import Loading from '../components/Loading'
-
-import timeFormat from '../lib/timeFormat'
-import { mockDescriptions } from '../lib/mockDescriptions'
-import { mockPeopleWatchingNow } from '../lib/mockPeopleWatchingNow'
-import { mockCast } from '../lib/mockCast'
-import { mockLists } from '../lib/mockLists'
+import BlurCircle from '../components/BlurCircle';
+import TrailerButton from '../components/TrailerButton';
+import ActionRail from '../components/ActionRail';
+import CastGrid from '../components/CastGrid';
+import Loading from '../components/Loading';
 
 // watchlist helpers
 import {
   watchlistStatus,
   addToWatchlist,
   removeFromWatchlist,
-} from '../lib/watchlistApi'
+} from '../lib/watchlistApi';
 
 // progress helpers
-import { addToHistory } from '../lib/progressApi'
+import { addToHistory } from '../lib/progressApi';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000'
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 // Normalize DB/TMDB show shapes
 function normalizeShow(raw) {
-  const s = raw?.show ?? raw ?? {}
-  const title = s.name || s.title || 'Untitled'
-  const runtime = Number(s.episode_run_time?.[0] || s.runtime || 0)
-  const airDate = s.first_air_date || s.release_date || ''
-  const year = airDate ? String(airDate).split('-')[0] : ''
+  const s = raw?.show ?? raw ?? {};
+  const title = s.name || s.title || 'Untitled';
+  const runtime = Number(s.episode_run_time?.[0] || s.runtime || 0);
+  const airDate = s.first_air_date || s.release_date || '';
+  const year = airDate ? String(airDate).split('-')[0] : '';
   const genres = Array.isArray(s.genres)
-    ? (typeof s.genres[0] === 'string' ? s.genres : s.genres.map(g => g?.name).filter(Boolean))
-    : []
-  const vote = Number(s.vote_average ?? s.rating ?? 0)
-  const backdrop = s.backdrop_path || s.poster_path || s.image || ''
-  const poster = s.poster_path || s.backdrop_path || s.image || ''
+    ? (typeof s.genres[0] === 'string'
+        ? s.genres
+        : s.genres.map((g) => g?.name).filter(Boolean))
+    : [];
+  const vote = Number(s.vote_average ?? s.rating ?? 0);
+  const backdrop = s.backdrop_path || s.poster_path || s.image || '';
+  const poster = s.poster_path || s.backdrop_path || s.image || '';
 
   return {
     _id: s._id || s.id || '',
     title,
-    runtime,                        // minutes per episode
+    runtime,
     airDate,
     year,
     genres,
     vote,
     backdrop,
     poster,
-    number_of_seasons:  Number(s.number_of_seasons || 0),
+    number_of_seasons: Number(s.number_of_seasons || 0),
     number_of_episodes: Number(s.number_of_episodes || 0),
     original: s,
-  }
+  };
 }
 
 const SeriesDetails = () => {
-  const { id } = useParams()
-  const [show, setShow] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
+  const { id } = useParams();
+  const navigate = useNavigate();             
+
+  const [show, setShow] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  // extras
+  const [trailerUrl, setTrailerUrl] = useState(null);
+  const [cast, setCast] = useState([]);
 
   // watchlist UI state
-  const { getToken } = useAuth()
-  const { isSignedIn } = useUser()
-  const [inWatchlist, setInWatchlist] = useState(false)
-  const [wlBusy, setWlBusy] = useState(false)
+  const { getToken } = useAuth();
+  const { isSignedIn } = useUser();
+  const [inWatchlist, setInWatchlist] = useState(false);
+  const [wlBusy, setWlBusy] = useState(false);
 
   // seasons -> history modal state
-  const [historyOpen, setHistoryOpen] = useState(false)
-  const [seasonsWatched, setSeasonsWatched] = useState(0)
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [seasonsWatched, setSeasonsWatched] = useState(0);
 
   // Load show
   useEffect(() => {
-    let isMounted = true
-    const ctrl = new AbortController()
-    ;(async () => {
-      setLoading(true)
-      setError('')
+    let isMounted = true;
+    const ctrl = new AbortController();
+    (async () => {
+      setLoading(true);
+      setError('');
       try {
-        const res = await fetch(`${API_BASE}/api/tv/shows/${id}`, { signal: ctrl.signal })
-        if (!res.ok) throw new Error(`Failed to fetch show (${res.status})`)
-        const json = await res.json()
-        if (isMounted) setShow(normalizeShow(json))
+        const res = await fetch(`${API_BASE}/api/tv/shows/${id}`, { signal: ctrl.signal });
+        if (!res.ok) throw new Error(`Failed to fetch show (${res.status})`);
+        const json = await res.json();
+        if (isMounted) setShow(normalizeShow(json));
       } catch (e) {
-        if (isMounted) setError(e.message || 'Failed to load show.')
+        if (isMounted) setError(e.message || 'Failed to load show.');
       } finally {
-        if (isMounted) setLoading(false)
+        if (isMounted) setLoading(false);
       }
-    })()
-    return () => { isMounted = false; ctrl.abort() }
-  }, [id])
+    })();
+    return () => { isMounted = false; ctrl.abort(); };
+  }, [id]);
+
+  // Fetch trailer + cast once we know the show id
+  useEffect(() => {
+    let ignore = false;
+    if (!show?._id) return;
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/tv/shows/${show._id}/extras`);
+        if (!res.ok) throw new Error('Failed to load extras');
+        const { trailerUrl, cast } = await res.json();
+        if (!ignore) {
+          setTrailerUrl(trailerUrl || null);
+          setCast(Array.isArray(cast) ? cast : []);
+        }
+      } catch {
+        if (!ignore) {
+          setTrailerUrl(null);
+          setCast([]);
+        }
+      }
+    })();
+    return () => { ignore = true; };
+  }, [show?._id]);
 
   // Check if in watchlist
   useEffect(() => {
-    let ignore = false
-    ;(async () => {
-      if (!isSignedIn || !show?._id) return
+    let ignore = false;
+    (async () => {
+      if (!isSignedIn || !show?._id) return;
       try {
-        const { exists } = await watchlistStatus(String(show._id), getToken)
-        if (!ignore) setInWatchlist(!!exists)
+        const { exists } = await watchlistStatus(String(show._id), getToken);
+        if (!ignore) setInWatchlist(!!exists);
       } catch {}
-    })()
-    return () => { ignore = true }
-  }, [isSignedIn, show?._id, getToken])
+    })();
+    return () => { ignore = true; };
+  }, [isSignedIn, show?._id, getToken]);
 
   const commonPoster =
-    (show?.poster || show?.backdrop) ||
-    (show?.original?.poster_path ? `https://image.tmdb.org/t/p/w500${show.original.poster_path}` : '')
+    show?.poster ||
+    show?.backdrop ||
+    (show?.original?.poster_path ? `https://image.tmdb.org/t/p/w500${show.original.poster_path}` : '');
 
   const watchlistPayload = useMemo(() => {
-    if (!show) return null
+    if (!show) return null;
     return {
       itemId: String(show._id || ''),
       type: 'tv',
@@ -126,55 +150,54 @@ const SeriesDetails = () => {
       genres: Array.isArray(show.genres) ? show.genres : [],
       rating: typeof show.vote === 'number' ? show.vote : undefined,
       seasons: Number(show.number_of_seasons) || undefined,
-    }
-  }, [show])
+    };
+  }, [show]);
 
   // Handle ActionRail click
   const handleAction = async (actionId) => {
     if (actionId === 'watchlist') {
-      if (!isSignedIn) return toast('Please sign in to use your watchlist.')
-      if (!watchlistPayload?.itemId) return
-      setWlBusy(true)
-      const next = !inWatchlist
-      setInWatchlist(next) // optimistic
+      if (!isSignedIn) return toast('Please sign in to use your watchlist.');
+      if (!watchlistPayload?.itemId) return;
+      setWlBusy(true);
+      const next = !inWatchlist;
+      setInWatchlist(next);
       try {
         if (next) {
-          await addToWatchlist(watchlistPayload, getToken)
-          toast.success('Added to your watchlist')
+          await addToWatchlist(watchlistPayload, getToken);
+          toast.success('Added to your watchlist');
         } else {
-          await removeFromWatchlist(watchlistPayload.itemId, getToken)
-          toast('Removed from your watchlist')
+          await removeFromWatchlist(watchlistPayload.itemId, getToken);
+          toast('Removed from your watchlist');
         }
       } catch {
-        setInWatchlist(!next) // revert
-        toast.error('Could not update watchlist')
+        setInWatchlist(!next);
+        toast.error('Could not update watchlist');
       } finally {
-        setWlBusy(false)
+        setWlBusy(false);
       }
-      return
+      return;
     }
 
     if (actionId === 'history') {
-      if (!isSignedIn) return toast('Please sign in to use your history.')
-      setSeasonsWatched(0)
-      setHistoryOpen(true)
-      return
+      if (!isSignedIn) return toast('Please sign in to use your history.');
+      setSeasonsWatched(0);
+      setHistoryOpen(true);
+      return;
     }
-  }
+  };
 
-  // Convert seasons watched -> episodes watched using a proportional split:
-  // episodesWatched = round(totalEpisodes * seasonsWatched / totalSeasons)
+  // Convert seasons watched -> episodes watched
   const derivedEpisodesWatched = useMemo(() => {
-    if (!show) return 0
-    const T = Math.max(0, show.number_of_seasons)
-    const E = Math.max(0, show.number_of_episodes)
-    const S = Math.max(0, Math.min(seasonsWatched, T))
-    if (!T || !E) return 0
-    return Math.round((E * S) / T)
-  }, [show, seasonsWatched])
+    if (!show) return 0;
+    const T = Math.max(0, show.number_of_seasons);
+    const E = Math.max(0, show.number_of_episodes);
+    const S = Math.max(0, Math.min(seasonsWatched, T));
+    if (!T || !E) return 0;
+    return Math.round((E * S) / T);
+  }, [show, seasonsWatched]);
 
   const submitHistory = async () => {
-    if (!show?._id) return
+    if (!show?._id) return;
     try {
       await addToHistory({
         itemId: String(show._id),
@@ -182,7 +205,7 @@ const SeriesDetails = () => {
         title: show.title,
         poster: commonPoster,
         year: show.year,
-        runtime: show.runtime,         // minutes PER EPISODE
+        runtime: show.runtime,
         genres: show.genres,
         rating: show.vote,
         incPlays: 1,
@@ -191,28 +214,46 @@ const SeriesDetails = () => {
           episodesTotal: Number(show.number_of_episodes) || 0,
           setEpisodesWatched: derivedEpisodesWatched,
         }
-      }, getToken)
-      toast.success('Added to history')
-      setHistoryOpen(false)
-    } catch (e) {
-      toast.error('Could not add to history')
+      }, getToken);
+      toast.success('Added to history');
+      setHistoryOpen(false);
+    } catch {
+      toast.error('Could not add to history');
     }
-  }
+  };
+
+  // Map cast and cap to one row (8)
+  const castForUi = useMemo(() => {
+    const fallback = 'https://via.placeholder.com/185x278?text=No+Image';
+    return (cast || []).map((c) => {
+      const src =
+        c.img ??
+        c.image ??
+        c.profile ??
+        (c.profile_path ? `https://image.tmdb.org/t/p/w185${c.profile_path}` : undefined);
+      return {
+        id: c.id,
+        name: c.name,
+        role: c.role ?? c.character ?? '',
+        img: src || fallback,
+      };
+    }).slice(0, 8);
+  }, [cast]);
 
   const description = useMemo(() => {
-    return show?.original?.overview || mockDescriptions[show?._id] || 'No description available.'
-  }, [show])
+    return show?.original?.overview || 'No description available.';
+  }, [show]);
 
-  if (loading) return <Loading />
+  if (loading) return <Loading />;
   if (error) {
     return (
       <div className="px-6 md:px-16 lg:px-40 py-20">
         <h1 className="text-2xl font-semibold mb-3">Something went wrong</h1>
         <p className="text-gray-400">{error}</p>
       </div>
-    )
+    );
   }
-  if (!show) return <Loading />
+  if (!show) return <Loading />;
 
   return (
     <div className="px-6 md:px-16 lg:px-40 pt-30 md:pt-50">
@@ -221,7 +262,7 @@ const SeriesDetails = () => {
           src={show.backdrop || show.poster}
           alt={show.title}
           className="max-md:mx-auto rounded-xl md:h-96 md:w-64 object-cover flex-none"
-          onError={(e) => { e.currentTarget.src = 'https://via.placeholder.com/300x450?text=No+Image' }}
+          onError={(e) => { e.currentTarget.src = 'https://via.placeholder.com/300x450?text=No+Image'; }}
         />
 
         <div className="relative flex flex-col gap-3">
@@ -248,10 +289,17 @@ const SeriesDetails = () => {
 
           <p className="text-gray-300 mt-3 leading-relaxed">{description}</p>
 
-          <TrailerButton onClick={() => console.log('open trailer modal')} />
+          <TrailerButton
+            onClick={() => {
+              if (trailerUrl) {
+                window.open(trailerUrl, '_blank', 'noopener,noreferrer');
+              } else {
+                toast('No trailer available for this title.');
+              }
+            }}
+          />
         </div>
 
-        {/* Actions */}
         <ActionRail
           onAction={handleAction}
           watchlistActive={inWatchlist}
@@ -259,7 +307,7 @@ const SeriesDetails = () => {
         />
       </div>
 
-      {/* Seasons -> history modal */}
+      {/* History modal */}
       {historyOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
           <div className="w-full max-w-md rounded-2xl bg-zinc-900 border border-white/10 p-6 shadow-xl">
@@ -295,34 +343,22 @@ const SeriesDetails = () => {
             </p>
 
             <div className="mt-5 flex justify-end gap-2">
-              <button
-                onClick={() => setHistoryOpen(false)}
-                className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/15"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={submitHistory}
-                className="px-4 py-2 rounded-lg bg-primary hover:bg-primary/90"
-              >
-                Save
-              </button>
+              <button onClick={() => setHistoryOpen(false)} className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/15">Cancel</button>
+              <button onClick={submitHistory} className="px-4 py-2 rounded-lg bg-primary hover:bg-primary/90">Save</button>
             </div>
           </div>
         </div>
       )}
 
-      <AvatarRow
-        countLabel="97 watching now"
-        avatars={mockPeopleWatchingNow}
-        extraCount={86}
+      <CastGrid
+        cast={castForUi}
+        onAllCast={() => {
+          window.scrollTo({ top: 0, behavior: "smooth" });
+          navigate(`/series/${show._id}/cast`)
+        }}
       />
-
-      <CastGrid cast={mockCast} onAllCast={() => console.log('open cast page')} />
-
-      <ListCards lists={mockLists(show.original)} onAll={() => console.log('open lists page')} />
     </div>
-  )
-}
+  );
+};
 
-export default SeriesDetails
+export default SeriesDetails;

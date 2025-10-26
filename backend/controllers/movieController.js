@@ -18,8 +18,6 @@ export const listAllMovies = async (req, res) => {
       Movie.countDocuments(filter),
     ]);
 
-    console.log("Total movies found:", total);
-
     res.json({
       success: true,
       page,

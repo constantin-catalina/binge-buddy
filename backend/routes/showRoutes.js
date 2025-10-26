@@ -1,8 +1,9 @@
 import express from 'express';
 import axios from 'axios';
 import { getMovies, listAllMovies, getMovieById } from '../controllers/movieController.js';
-import { protectAdmin } from '../middleware/auth.js'; // not needed for read-only
+import { protectAdmin } from '../middleware/auth.js';
 import Movie from '../models/Movie.js';
+import { tmdbFindMovieIdByTitleYear, tmdbMovieVideos, tmdbMovieCredits } from "../services/tmdb.js";
 
 const showRouter = express.Router();
 
@@ -126,5 +127,58 @@ showRouter.delete('/delete-all', async (req, res) => {
   }
 });
 
+/**
+ * GET /api/show/movies/:id/extras
+ * Returns { trailerUrl, cast: [{id, name, character, profile}] }
+ */
+showRouter.get("/movies/:id/extras", async (req, res) => {
+  try {
+    const dbMovie = await Movie.findById(req.params.id).lean();
+    if (!dbMovie) return res.status(404).json({ message: "Movie not found" });
+
+    const title = dbMovie.title || dbMovie.name || "";
+    const year = (dbMovie.release_date || "").slice(0, 4);
+
+    // If you store tmdbId in your schema, prefer using that directly.
+    const tmdbId = dbMovie.tmdbId || (await tmdbFindMovieIdByTitleYear(title, year));
+    if (!tmdbId) return res.json({ trailerUrl: null, cast: [] });
+
+    const [trailerUrl, cast] = await Promise.all([
+      tmdbMovieVideos(tmdbId),
+      tmdbMovieCredits(tmdbId),
+    ]);
+
+    res.json({ trailerUrl, cast });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ message: "Failed to load extras" });
+  }
+});
+
+// ✅ FULL CAST (MOVIES)
+showRouter.get("/movies/:id/cast", async (req, res) => {
+  try {
+    const paramId = req.params.id;
+    const dbMovie = await Movie.findById(paramId).lean().catch(() => null);
+    const tmdbId = dbMovie?._id || paramId;
+
+    const { data } = await TMDB.get(`/movie/${tmdbId}/credits?language=en-US`);
+    const castRaw = Array.isArray(data?.cast) ? data.cast : [];
+
+    const cast = castRaw.map((c) => ({
+      id: c.id,
+      name: c.name,
+      character: c.character,
+      img: c.profile_path
+        ? `https://image.tmdb.org/t/p/w185${c.profile_path}`
+        : "https://via.placeholder.com/185x278?text=No+Image",
+    }));
+
+    res.json({ cast });
+  } catch (error) {
+    console.error("Movie full cast error:", error?.response?.data || error.message);
+    res.status(500).json({ message: "Failed to load cast" });
+  }
+});
 
 export default showRouter;

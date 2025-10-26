@@ -12,11 +12,53 @@ const TMDB = axios.create({
   },
 });
 
-// Get all TV shows
+// -------------------- TV Shows (basic) --------------------
 tvRouter.get("/shows", listAllShows);
 tvRouter.get("/shows/:id", getShowById);
 
-// Import TV shows from TMDB (like your /import/:type route)
+// -------------------- NEW: extras (trailer + cast) --------------------
+tvRouter.get("/shows/:id/extras", async (req, res) => {
+  try {
+    // Your import stores _id as the TMDB id; if not found, fallback to the param.
+    const paramId = req.params.id;
+    const dbShow = await TvShow.findById(paramId).lean().catch(() => null);
+    const tmdbId = dbShow?._id || paramId;
+
+    // Fetch videos + credits in parallel
+    const [videosRes, creditsRes] = await Promise.all([
+      TMDB.get(`/tv/${tmdbId}/videos?language=en-US`),
+      TMDB.get(`/tv/${tmdbId}/credits?language=en-US`),
+    ]);
+
+    // --- Pick best trailer (prefer Official YouTube Trailer)
+    const vids = Array.isArray(videosRes?.data?.results)
+      ? videosRes.data.results
+      : [];
+    const bestVideo =
+      vids.find((v) => v.site === "YouTube" && v.type === "Trailer" && v.official) ||
+      vids.find((v) => v.site === "YouTube" && v.type === "Trailer") ||
+      vids.find((v) => v.site === "YouTube");
+    const trailerUrl = bestVideo ? `https://www.youtube.com/watch?v=${bestVideo.key}` : null;
+
+    // --- Map cast to your UI shape (first 12; you can slice fewer in the UI)
+    const castRaw = Array.isArray(creditsRes?.data?.cast) ? creditsRes.data.cast : [];
+    const cast = castRaw.slice(0, 12).map((c) => ({
+      id: c.id,
+      name: c.name,
+      character: c.character,
+      img: c.profile_path
+        ? `https://image.tmdb.org/t/p/w185${c.profile_path}`
+        : "https://via.placeholder.com/185x278?text=No+Image",
+    }));
+
+    res.json({ trailerUrl, cast });
+  } catch (error) {
+    console.error("TV extras error:", error?.response?.data || error.message);
+    res.status(500).json({ message: "Failed to load extras" });
+  }
+});
+
+// -------------------- Import from TMDB --------------------
 tvRouter.post("/import/:type", async (req, res) => {
   const { type } = req.params;
   const limit = parseInt(req.query.limit) || 32;
@@ -49,7 +91,7 @@ tvRouter.post("/import/:type", async (req, res) => {
 
           return {
             _id: String(detail.id),
-            _type: 'tv',
+            _type: "tv",
             name: detail.name,
             overview: detail.overview || "",
             poster_path: detail.poster_path
@@ -98,8 +140,34 @@ tvRouter.post("/import/:type", async (req, res) => {
   }
 });
 
-// Delete all TV shows
-tvRouter.delete('/delete-all', async (req, res) => {
+// GET /api/tv/shows/:id/cast  -> full cast list
+tvRouter.get("/shows/:id/cast", async (req, res) => {
+  try {
+    const paramId = req.params.id;
+    const dbShow = await TvShow.findById(paramId).lean().catch(() => null);
+    const tmdbId = dbShow?._id || paramId;
+
+    const { data } = await TMDB.get(`/tv/${tmdbId}/credits?language=en-US`);
+    const castRaw = Array.isArray(data?.cast) ? data.cast : [];
+
+    const cast = castRaw.map((c) => ({
+      id: c.id,
+      name: c.name,
+      character: c.character,
+      img: c.profile_path
+        ? `https://image.tmdb.org/t/p/w185${c.profile_path}`
+        : "https://via.placeholder.com/185x278?text=No+Image",
+    }));
+
+    res.json({ cast });
+  } catch (error) {
+    console.error("TV full cast error:", error?.response?.data || error.message);
+    res.status(500).json({ message: "Failed to load cast" });
+  }
+});
+
+// -------------------- Danger: Delete all TV shows --------------------
+tvRouter.delete("/delete-all", async (req, res) => {
   try {
     const result = await TvShow.deleteMany({});
     res.json({ success: true, deleted: result.deletedCount });
@@ -107,6 +175,5 @@ tvRouter.delete('/delete-all', async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 });
-
 
 export default tvRouter;

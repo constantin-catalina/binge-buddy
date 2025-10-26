@@ -1,30 +1,30 @@
-import React, { use } from 'react'
-import Navbar from './components/Navbar'
-import Footer from './components/Footer'
-import Home from './pages/Home'
-import { Route, Routes, useLocation } from 'react-router-dom'
-import Details from './pages/Details'
-import Movies from './pages/Movies'
-import Series from './pages/Series'
-import MyWatchlist from './pages/MyWatchlist'
-import { Toaster } from 'react-hot-toast'
-import Discover from './pages/Discover'
-import UserDashboard from './pages/UserDashboard'
-import Progress from './pages/Progress'
-import EditShows from './pages/admin/EditShows'
-import EditUsers from './pages/admin/EditUsers'
-import Layout from './pages/admin/Layout'
-import Dashboard from './pages/admin/Dashboard'
-import AddShow from './pages/admin/AddShow'
-import EditShow from './pages/admin/EditShow'
-import AddUser from './pages/admin/AddUser'
-import EditUser from './pages/admin/EditUser'
-import SearchResults from './pages/SearchResults'
-import SeriesDetails from './pages/SeriesDetails'
-import RequireAdmin from './components/auth/RequireAdmin'
+import React from 'react';
+import Navbar from './components/Navbar';
+import Footer from './components/Footer';
+import Home from './pages/Home';
+import { Route, Routes, useLocation } from 'react-router-dom';
+import Details from './pages/Details';
+import Movies from './pages/Movies';
+import Series from './pages/Series';
+import MyWatchlist from './pages/MyWatchlist';
+import { Toaster } from 'react-hot-toast';
+import Discover from './pages/Discover';
+import UserDashboard from './pages/UserDashboard';
+import Progress from './pages/Progress';
+import EditShows from './pages/admin/EditShows';
+import EditUsers from './pages/admin/EditUsers';
+import Layout from './pages/admin/Layout';
+import Dashboard from './pages/admin/Dashboard';
+import AddShow from './pages/admin/AddShow';
+import EditShow from './pages/admin/EditShow';
+import AddUser from './pages/admin/AddUser';
+import EditUser from './pages/admin/EditUser';
+import SearchResults from './pages/SearchResults';
+import SeriesDetails from './pages/SeriesDetails';
+import RequireAdmin from './components/auth/RequireAdmin';
+import AllCast from './pages/AllCast';
 
 const App = () => {
-
   const isAdminRoute = useLocation().pathname.startsWith('/admin');
 
   return (
@@ -42,11 +42,16 @@ const App = () => {
         <Route path="/watchlist" element={<MyWatchlist/>}/>
         <Route path="/dashboard" element={<UserDashboard/>}/>
         <Route path="/progress" element={<Progress/>}/>
-        <Route path="/admin/*" element={
+        <Route path="/series/:id/cast" element={<AllCast/>}/>
+        <Route path="/movies/:id/cast" element={<AllCast/>}/>
+        <Route
+          path="/admin/*"
+          element={
             <RequireAdmin>
-            <Layout/>
+              <Layout/>
             </RequireAdmin>
-          }> 
+          }
+        >
           <Route index element={<Dashboard/>}/>
           <Route path="edit-shows" element={<EditShows/>}/>
           <Route path="add-show" element={<AddShow/>}/>
@@ -59,7 +64,7 @@ const App = () => {
       <Toaster richColors position="top-right" />
       {!isAdminRoute && <Footer/>}
     </>
-  )
-}
+  );
+};
 
-export default App
+export default App;

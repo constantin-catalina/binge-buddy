@@ -1,47 +1,44 @@
-import React, { useEffect, useState, useMemo } from 'react'
-import { useParams } from 'react-router-dom'
-import { Star as StarIcon } from 'lucide-react'
-import { useAuth, useUser } from '@clerk/clerk-react'
-import { toast } from 'sonner'
+import React, { useEffect, useState, useMemo } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { Star as StarIcon } from 'lucide-react';
+import { useAuth, useUser } from '@clerk/clerk-react';
+import { toast } from 'sonner';
 
-import BlurCircle from '../components/BlurCircle'
-import TrailerButton from '../components/TrailerButton'
-import ActionRail from '../components/ActionRail'
-import AvatarRow from '../components/AvatarRow'
-import CastGrid from '../components/CastGrid'
-import ListCards from '../components/ListCards'
-import Loading from '../components/Loading'
+import BlurCircle from '../components/BlurCircle';
+import TrailerButton from '../components/TrailerButton';
+import ActionRail from '../components/ActionRail';
+import AvatarRow from '../components/AvatarRow';
+import CastGrid from '../components/CastGrid';
+import ListCards from '../components/ListCards';
+import Loading from '../components/Loading';
 
-import timeFormat from '../lib/timeFormat'
-import { mockDescriptions } from '../lib/mockDescriptions'
-import { mockPeopleWatchingNow } from '../lib/mockPeopleWatchingNow'
-import { mockCast } from '../lib/mockCast'
-import { mockLists } from '../lib/mockLists'
+import timeFormat from '../lib/timeFormat';
+import { mockDescriptions } from '../lib/mockDescriptions';
 
 // Watchlist API helpers
 import {
   watchlistStatus,
   addToWatchlist,
   removeFromWatchlist,
-} from '../lib/watchlistApi'
+} from '../lib/watchlistApi';
 
-import { addToHistory } from '../lib/progressApi'
+import { addToHistory } from '../lib/progressApi';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000'
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 // Normalize DB/TMDB movie shapes to what the page needs
 function normalizeMovie(raw) {
-  const m = raw?.movie ?? raw ?? {}
-  const title = m.title || m.name || 'Untitled'
-  const runtime = Number(m.runtime || m.episode_run_time?.[0] || 0)
-  const releaseDate = m.release_date || m.first_air_date || ''
-  const year = releaseDate ? String(releaseDate).split('-')[0] : ''
+  const m = raw?.movie ?? raw ?? {};
+  const title = m.title || m.name || 'Untitled';
+  const runtime = Number(m.runtime || m.episode_run_time?.[0] || 0);
+  const releaseDate = m.release_date || m.first_air_date || '';
+  const year = releaseDate ? String(releaseDate).split('-')[0] : '';
   const genres = Array.isArray(m.genres)
     ? (typeof m.genres[0] === 'string' ? m.genres : m.genres.map(g => g?.name).filter(Boolean))
-    : []
-  const vote = Number(m.vote_average ?? m.rating ?? 0)
-  const backdrop = m.backdrop_path || m.poster_path || m.image || ''
-  const poster = m.poster_path || m.backdrop_path || m.image || ''
+    : [];
+  const vote = Number(m.vote_average ?? m.rating ?? 0);
+  const backdrop = m.backdrop_path || m.poster_path || m.image || '';
+  const poster = m.poster_path || m.backdrop_path || m.image || '';
 
   return {
     _id: m._id || m.id || '',
@@ -54,60 +51,89 @@ function normalizeMovie(raw) {
     backdrop,
     poster,
     original: m,
-  }
+  };
 }
 
 const Details = () => {
-  const { id } = useParams()
-  const [movie, setMovie] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
+  const { id } = useParams();
+  const navigate = useNavigate();
+  
+  const [movie, setMovie] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  // Trailer + cast (real data)
+  const [trailerUrl, setTrailerUrl] = useState(null);
+  const [cast, setCast] = useState([]);
 
   // 👇 watchlist state
-  const { getToken } = useAuth()
-  const { isSignedIn } = useUser()
-  const [inWatchlist, setInWatchlist] = useState(false)
-  const [wlBusy, setWlBusy] = useState(false)
+  const { getToken } = useAuth();
+  const { isSignedIn } = useUser();
+  const [inWatchlist, setInWatchlist] = useState(false);
+  const [wlBusy, setWlBusy] = useState(false);
 
   // Load the movie
   useEffect(() => {
-    let isMounted = true
-    const ctrl = new AbortController()
-    ;(async () => {
-      setLoading(true)
-      setError('')
+    let isMounted = true;
+    const ctrl = new AbortController();
+    (async () => {
+      setLoading(true);
+      setError('');
       try {
-        const res = await fetch(`${API_BASE}/api/show/movies/${id}`, { signal: ctrl.signal })
-        if (!res.ok) throw new Error(`Failed to fetch movie (${res.status})`)
-        const json = await res.json()
-        if (isMounted) setMovie(normalizeMovie(json))
+        const res = await fetch(`${API_BASE}/api/show/movies/${id}`, { signal: ctrl.signal });
+        if (!res.ok) throw new Error(`Failed to fetch movie (${res.status})`);
+        const json = await res.json();
+        if (isMounted) setMovie(normalizeMovie(json));
       } catch (e) {
-        if (isMounted) setError(e.message || 'Failed to load movie.')
+        if (isMounted) setError(e.message || 'Failed to load movie.');
       } finally {
-        if (isMounted) setLoading(false)
+        if (isMounted) setLoading(false);
       }
-    })()
-    return () => { isMounted = false; ctrl.abort() }
-  }, [id])
+    })();
+    return () => { isMounted = false; ctrl.abort(); };
+  }, [id]);
+
+  // Fetch trailer + cast once we know the movie id
+  useEffect(() => {
+    let ignore = false;
+    if (!movie?._id) return;
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/show/movies/${movie._id}/extras`);
+        if (!res.ok) throw new Error('Failed to load extras');
+        const { trailerUrl, cast } = await res.json();
+        if (!ignore) {
+          setTrailerUrl(trailerUrl || null);
+          setCast(Array.isArray(cast) ? cast : []);
+        }
+      } catch {
+        if (!ignore) {
+          setTrailerUrl(null);
+          setCast([]);
+        }
+      }
+    })();
+    return () => { ignore = true; };
+  }, [movie?._id]);
 
   // When we have a movie, check if it's already in the user's watchlist
   useEffect(() => {
-    let ignore = false
-    ;(async () => {
-      if (!isSignedIn || !movie?._id) return
+    let ignore = false;
+    (async () => {
+      if (!isSignedIn || !movie?._id) return;
       try {
-        const { exists } = await watchlistStatus(String(movie._id), getToken)
-        if (!ignore) setInWatchlist(!!exists)
+        const { exists } = await watchlistStatus(String(movie._id), getToken);
+        if (!ignore) setInWatchlist(!!exists);
       } catch {
         // ignore
       }
-    })()
-    return () => { ignore = true }
-  }, [isSignedIn, movie?._id, getToken])
+    })();
+    return () => { ignore = true; };
+  }, [isSignedIn, movie?._id, getToken]);
 
   // Build the payload for addToWatchlist()
   const watchlistPayload = useMemo(() => {
-    if (!movie) return null
+    if (!movie) return null;
     return {
       itemId: String(movie._id || ''),
       type: 'movie',
@@ -120,77 +146,74 @@ const Details = () => {
       runtime: movie.runtime,
       genres: Array.isArray(movie.genres) ? movie.genres : [],
       rating: typeof movie.vote === 'number' ? movie.vote : undefined,
-    }
-  }, [movie])
+    };
+  }, [movie]);
 
-  // Handle ActionRail clicks
   const handleAction = async (actionId) => {
     if (actionId === 'history') {
-      if (!isSignedIn || !movie?._id) return toast('Please sign in.')
-      // Build a MOVIE payload for progress
+      if (!isSignedIn || !movie?._id) return toast('Please sign in.');
       const payload = {
         itemId: String(movie._id),
         type: 'movie',
         title: movie.title,
         poster: movie.poster || movie.backdrop,
         year: movie.year,
-        runtime: movie.runtime,                 // minutes
+        runtime: movie.runtime,
         genres: movie.genres,
         rating: movie.vote,
-        incPlays: 1,                            // count as a play
-        incMinutes: movie.runtime || 0,         // add runtime to minutesWatched
-        at: new Date().toISOString(),          // now
+        incPlays: 1,
+        incMinutes: movie.runtime || 0,
+        at: new Date().toISOString(),
+      };
+      try {
+        await addToHistory(payload, getToken);
+        toast.success('Added to history');
+      } catch {
+        toast.error('Could not add to history');
+      }
+      return;
     }
-    try {
-      await addToHistory(payload, getToken)
-      toast.success('Added to history')
-    } catch {
-      toast.error('Could not add to history')
-    }
-    return
-  }
-  if (actionId !== 'watchlist') return
+    if (actionId !== 'watchlist') return;
     if (!isSignedIn) {
-      toast('Please sign in to use your watchlist.')
-      return
+      toast('Please sign in to use your watchlist.');
+      return;
     }
-    if (!watchlistPayload?.itemId) return
+    if (!watchlistPayload?.itemId) return;
 
-    setWlBusy(true)
-    const next = !inWatchlist
-    setInWatchlist(next) // optimistic
+    setWlBusy(true);
+    const next = !inWatchlist;
+    setInWatchlist(next);
 
     try {
       if (next) {
-        await addToWatchlist(watchlistPayload, getToken)
-        toast.success('Added to your watchlist')
+        await addToWatchlist(watchlistPayload, getToken);
+        toast.success('Added to your watchlist');
       } else {
-        await removeFromWatchlist(watchlistPayload.itemId, getToken)
-        toast('Removed from your watchlist')
+        await removeFromWatchlist(watchlistPayload.itemId, getToken);
+        toast('Removed from your watchlist');
       }
     } catch (e) {
-      setInWatchlist(!next) // revert
-      toast.error('Could not update watchlist')
+      setInWatchlist(!next);
+      toast.error('Could not update watchlist');
     } finally {
-      setWlBusy(false)
+      setWlBusy(false);
     }
-  }
+  };
 
-  // Description
   const description = useMemo(() => {
-    return movie?.original?.overview || mockDescriptions[movie?._id] || 'No description available.'
-  }, [movie])
+    return movie?.original?.overview || mockDescriptions[movie?._id] || 'No description available.';
+  }, [movie]);
 
-  if (loading) return <Loading/>
+  if (loading) return <Loading />;
   if (error) {
     return (
       <div className='px-6 md:px-16 lg:px-40 py-20'>
         <h1 className='text-2xl font-semibold mb-3'>Something went wrong</h1>
         <p className='text-gray-400'>{error}</p>
       </div>
-    )
+    );
   }
-  if (!movie) return <Loading/>
+  if (!movie) return <Loading />;
 
   return (
     <div className='px-6 md:px-16 lg:px-40 pt-30 md:pt-50'>
@@ -199,11 +222,11 @@ const Details = () => {
           src={movie.backdrop || movie.poster}
           alt={movie.title}
           className='max-md:mx-auto rounded-xl md:h-96 md:w-64 object-cover flex-none'
-          onError={(e) => { e.currentTarget.src = 'https://via.placeholder.com/300x450?text=No+Image' }}
+          onError={(e) => { e.currentTarget.src = 'https://via.placeholder.com/300x450?text=No+Image'; }}
         />
 
         <div className='relative flex flex-col gap-3'>
-          <BlurCircle top='-100px' left='-100px'/>
+          <BlurCircle top='-100px' left='-100px' />
 
           {movie.original?.original_language && (
             <p className='text-primary uppercase tracking-wide'>
@@ -228,36 +251,34 @@ const Details = () => {
             {description}
           </p>
 
-          <TrailerButton onClick={() => { console.log('open trailer modal') }} />
+          <TrailerButton
+            onClick={() => {
+              if (trailerUrl) {
+                window.open(trailerUrl, '_blank', 'noopener,noreferrer');
+              } else {
+                toast('No trailer available for this title.');
+              }
+            }}
+          />
         </div>
 
-        {/* 👉 This is where the Add to Watchlist click is handled */}
         <ActionRail
           onAction={handleAction}
-          // If you applied the optional styling props in ActionRail,
-          // these will make the "Add to Watchlist" row show active/loading:
           watchlistActive={inWatchlist}
           watchlistLoading={wlBusy}
         />
       </div>
 
-      <AvatarRow
-        countLabel='97 watching now'
-        avatars={mockPeopleWatchingNow}
-        extraCount={86}
-      />
-
       <CastGrid
-        cast={mockCast}
-        onAllCast={() => console.log('open cast page')}
+        cast={cast} 
+        onAllCast={() => {
+          window.scrollTo({ top: 0, behavior: "smooth" });
+          navigate(`/movies/${movie._id}/cast`)
+        }}
       />
 
-      <ListCards
-        lists={mockLists(movie.original)}
-        onAll={() => console.log('open lists page')}
-      />
     </div>
-  )
-}
+  );
+};
 
-export default Details
+export default Details;
