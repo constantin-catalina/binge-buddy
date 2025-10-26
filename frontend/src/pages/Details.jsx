@@ -139,6 +139,7 @@ const Details = () => {
         rating: movie.vote,
         incPlays: 1,                            // count as a play
         incMinutes: movie.runtime || 0,         // add runtime to minutesWatched
+        at: new Date().toISOString(),          // now
     }
     try {
       await addToHistory(payload, getToken)

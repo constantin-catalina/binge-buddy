@@ -1,11 +1,11 @@
-import React, { use, useEffect, useMemo, useState } from "react"
+import React, { useEffect, useMemo, useState } from "react"
 import BlurCircle from "../components/BlurCircle"
 import ProgressToolbar from "../components/ProgressToolbar"
 import ProgressGridCard from "../components/ProgressGridCard"
 import ProgressRowCard from "../components/ProgressRowCard"
 import { CheckCircle2, Clock3, Tv } from "lucide-react"
 import { useAuth } from "@clerk/clerk-react"
-import { listProgress, removeProgress } from "../lib/progressApi"
+import { listProgress, removeProgress, addToHistory } from "../lib/progressApi"
 
 const CONTROL_H = "h-12"
 const DEFAULT_TV_RUNTIME_MIN = 45
@@ -34,7 +34,7 @@ const Progress = () => {
   useEffect(() => {
     localStorage.setItem("progress:view", view)
   }, [view])
-  
+
   useEffect(() => {
     let ignore = false
     ;(async () => {
@@ -56,24 +56,22 @@ const Progress = () => {
             ? (runtime || Number(w.minutesWatched || 0) || 0)
             : (episodesWatched * runtime)
 
-          const minutesLeft = isMovie
-            ? 0
-            : Math.max(0, (totalEpisodes - episodesWatched) * runtime)
+          const minutesLeft = isMovie ? 0 : Math.max(0, (totalEpisodes - episodesWatched) * runtime)
 
           const watchedPct = isMovie
             ? 100
             : (totalEpisodes > 0 ? Math.round((episodesWatched / totalEpisodes) * 100) : 0)
 
           const _completed = watchedPct >= 100
-          const _status =
-            _completed ? "completed"
-            : (episodesWatched > 0 ? "inprogress" : "all")
+          const _status = _completed ? "completed" : (episodesWatched > 0 ? "inprogress" : "all")
 
           return {
             id: String(w.itemId),
             type: w.type,
             title: w.title,
             posterUrl: w.poster,
+            backdropUrl: w.backdrop,
+            runtime: runtime,
             totalEpisodes,
             episodesWatched,
             plays: w.plays || (isMovie ? 1 : 0),
@@ -94,21 +92,58 @@ const Progress = () => {
     return () => { ignore = true }
   }, [getToken])
 
-  // 👉 Remove handler (optimistic)
   const handleRemove = async (item) => {
     const ok = window.confirm(`Remove "${item.title}" from progress?`)
     if (!ok) return
-
     setBaseItems(curr => curr.filter(i => i.id !== item.id))
     try {
       await removeProgress(item.id, getToken)
     } catch (err) {
       console.error("Failed to remove:", err)
-      // (Optional) refetch; or show a toast and revert if you keep a copy of prev state
     }
   }
 
-  // Filters / search / sort
+  const handleMarkWatched = async (item) => {
+    if (item.type !== "tv") return
+    setBaseItems(curr => curr.map(i => {
+      if (i.id !== item.id) return i
+      const total = Math.max(0, i.totalEpisodes || 0)
+      const totalMinutes = (i.minutesWatched || 0) + (i.minutesLeft || 0)
+      return {
+        ...i,
+        episodesWatched: total,
+        minutesWatched: totalMinutes,
+        minutesLeft: 0,
+        watchedPct: 100,
+        status: "completed",
+      }
+    }))
+
+    try {
+      await addToHistory({
+        itemId: item.id,
+        type: "tv",
+        title: item.title,
+        poster: item.posterUrl,
+        backdrop: item.backdropUrl,
+        runtime: item.runtime || DEFAULT_TV_RUNTIME_MIN,
+        incPlays: 1,
+        incMinutes: item.minutesLeft || 0,
+        tv: {
+          episodesTotal: item.totalEpisodes,
+          setEpisodesWatched: item.totalEpisodes,
+          last: {
+            code: item.lastWatched?.code,
+            name: item.lastWatched?.name,
+            at: new Date().toISOString(),
+          }
+        }
+      }, getToken)
+    } catch (err) {
+      console.error("Failed to mark watched:", err)
+    }
+  }
+
   const filteredSorted = useMemo(() => {
     let list = [...baseItems]
 
@@ -174,7 +209,6 @@ const Progress = () => {
             {filteredSorted.map(item => (
               <ProgressGridCard
                 key={item.id}
-                onRemove={handleRemove}
                 item={{
                   id: item.id,
                   title: item.title,
@@ -188,6 +222,8 @@ const Progress = () => {
                   showTitle: item.title,
                   watchedLabel: item.watchedPct >= 100 ? "100% watched!" : undefined,
                 }}
+                onRemove={handleRemove}
+                onMarkWatched={() => handleMarkWatched(item)}
               />
             ))}
           </div>
@@ -198,6 +234,7 @@ const Progress = () => {
                 key={item.id}
                 item={item}
                 onRemove={handleRemove}
+                onMarkWatched={handleMarkWatched}
               />
             ))}
           </div>

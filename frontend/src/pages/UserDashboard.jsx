@@ -1,44 +1,149 @@
-import React from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import BlurCircle from '../components/BlurCircle'
 import { FaTv, FaFilm, FaFolder, FaPlay, FaClock, FaHeart, FaComment } from 'react-icons/fa'
-import bgImage from '../assets/september-review.jpg'
-import { useUser } from '@clerk/clerk-react'
+import bgImageFallback from '../assets/september-review.jpg'
+import { useUser, useAuth } from '@clerk/clerk-react'
 import Loading from '../components/Loading'
 import { Link } from 'react-router-dom'
 
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000'
+const DEFAULT_TV_RUNTIME_MIN = 45
+
+// ----- helpers -----
+const minutesToDHm = (mins = 0) => {
+  const d = Math.floor(mins / 1440)
+  const h = Math.floor((mins % 1440) / 60)
+  const m = Math.floor(mins % 60)
+  const parts = []
+  if (d) parts.push(`${d}d`)
+  if (h) parts.push(`${h}h`)
+  if (m || parts.length === 0) parts.push(`${m}m`)
+  return parts.join(' ')
+}
+
+// Parse season from "2x05" / "S02E05" / "s3e1"…
+const extractSeasonFromCode = (code) => {
+  if (!code) return null
+  const m = String(code).match(/(?:S\s*?(\d+))|(^|\D)(\d+)\s*[xE]/i)
+  const season = (m && (m[1] || m[3])) ? parseInt(m[1] || m[3], 10) : null
+  return Number.isFinite(season) ? season : null
+}
+
 const UserDashboard = () => {
   const { user, isLoaded } = useUser()
+  const { getToken } = useAuth()
+
+  // Progress-based stats (lifetime/library)
+  const [progressItems, setProgressItems] = useState([])
+  const [loadingProgress, setLoadingProgress] = useState(true)
+
+  // Monthly stats
+  const [monthStats, setMonthStats] = useState({ plays: 0, minutes: 0, hours: 0, firstPlay: null })
+  const [loadingMonth, setLoadingMonth] = useState(true)
+
+  // 1) Load all progress entries
+  useEffect(() => {
+    let ignore = false
+    ;(async () => {
+      setLoadingProgress(true)
+      try {
+        const token = await getToken?.()
+        const res = await fetch(`${API_BASE}/api/progress`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        })
+        const json = res.ok ? await res.json() : { items: [] }
+        if (!ignore) setProgressItems(json.items || [])
+      } catch {
+        if (!ignore) setProgressItems([])
+      } finally {
+        if (!ignore) setLoadingProgress(false)
+      }
+    })()
+    return () => { ignore = true }
+  }, [getToken])
+
+  // 2) Load month-in-review stats
+  useEffect(() => {
+    let ignore = false
+    ;(async () => {
+      setLoadingMonth(true)
+      try {
+        const token = await getToken?.()
+        const now = new Date()
+        const url = new URL(`${API_BASE}/api/stats/month`)
+        url.searchParams.set('year', String(now.getFullYear()))
+        url.searchParams.set('month', String(now.getMonth() + 1))
+        const res = await fetch(url.toString(), {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        })
+        const json = res.ok ? await res.json() : {}
+        if (!ignore) {
+          setMonthStats({
+            plays: json.plays || 0,                                  // episodes + movies this month
+            minutes: json.minutes || 0,
+            hours: json.hours ?? Math.round((json.minutes || 0) / 60),
+            firstPlay: json.firstPlay || null,                       // {type,title,code,name,poster,backdrop}
+          })
+        }
+      } catch {
+        if (!ignore) setMonthStats({ plays: 0, minutes: 0, hours: 0, firstPlay: null })
+      } finally {
+        if (!ignore) setLoadingMonth(false)
+      }
+    })()
+    return () => { ignore = true }
+  }, [getToken])
+
+  // Aggregate progress -> cards (TV/Movies/Library)
+  const agg = useMemo(() => {
+    const movies = progressItems.filter(i => i.type === 'movie')
+    const tv = progressItems.filter(i => i.type === 'tv')
+
+    // Movies
+    const movieCount = movies.length
+    const movieMinutes = movies.reduce((s, m) => {
+      const runtime = Number(m.runtime || 0)
+      return s + (runtime > 0 ? runtime : Number(m.minutesWatched || 0))
+    }, 0)
+
+    // TV
+    const tvShows = tv.length
+    const tvEpisodesWatched = tv.reduce((s, t) => s + Number(t.episodesWatched || 0), 0)
+    const tvMinutes = tv.reduce((s, t) => {
+      const runtime = Number(t.runtime || 0) > 0 ? Number(t.runtime) : DEFAULT_TV_RUNTIME_MIN
+      return s + runtime * Number(t.episodesWatched || 0)
+    }, 0)
+
+    // Library
+    const totalEpisodesInLibrary = tv.reduce((s, t) => s + Number(t.episodesTotal || 0), 0)
+
+    return {
+      tv: { minutes: tvMinutes, episodesWatched: tvEpisodesWatched, shows: tvShows },
+      movies: { minutes: movieMinutes, count: movieCount },
+      library: { episodes: totalEpisodesInLibrary, shows: tvShows, movies: movieCount }
+    }
+  }, [progressItems])
+
+  // Hero background (first play backdrop/poster if available)
+  const heroBg = monthStats.firstPlay?.backdrop || monthStats.firstPlay?.poster || bgImageFallback
+
+  // First play headline
+  const firstPlayHeadline = useMemo(() => {
+    if (!monthStats.firstPlay) return 'No plays yet this month'
+    const fp = monthStats.firstPlay
+    if (fp.type === 'tv') {
+      const s = extractSeasonFromCode(fp.code)
+      return s ? `${fp.title} — Season ${s}` : fp.title
+    }
+    return fp.title
+  }, [monthStats.firstPlay])
 
   // Handle loading or unauthenticated user
   if (!isLoaded) return <Loading />
   if (!user) return <p className="text-center text-gray-400 mt-20">You need to sign in to view your dashboard.</p>
 
-  const userStats = {
-    joinDate: '6 AUG 2020 22:46', // could be replaced with new Date(user.createdAt).toLocaleDateString()
-    tvTime: '36d 8h 20m',
-    tvEpisodes: 1202,
-    tvPlays: 1240,
-    tvShows: 93,
-    movieTime: '16d 10h 49m',
-    moviePlays: 214,
-    moviesWatched: 209,
-    month: 'september',
-    monthStats: {
-      plays: 5,
-      hours: 4,
-      ratings: 0,
-      comments: 0,
-      firstPlay: {
-        show: 'Wednesday',
-        episode: '2x05 "Hyde and Woe Seek"',
-      },
-    },
-  }
-
-  const {
-    joinDate, tvTime, tvEpisodes, tvPlays, tvShows,
-    movieTime, moviePlays, moviesWatched, month, monthStats
-  } = userStats
+  const memberSince = user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : '—'
+  const monthName = new Date().toLocaleString(undefined, { month: 'long' }).toLowerCase()
 
   return (
     <div className="relative overflow-hidden text-white">
@@ -55,20 +160,20 @@ const UserDashboard = () => {
           />
           <div>
             <h1 className="text-3xl font-semibold">Hello, {user.firstName || user.username}</h1>
-            <p className="text-sm text-gray-300">MEMBER SINCE {joinDate}</p>
+            <p className="text-sm text-gray-300">MEMBER SINCE {memberSince}</p>
           </div>
         </div>
       </div>
 
-      {/* Stats Row */}
+      {/* Stats Row (from Progress) */}
       <div className="max-w-6xl mx-auto px-6 md:px-10 lg:px-20 mb-16 grid grid-cols-1 sm:grid-cols-3 gap-4">
         {/* TV */}
         <div className="bg-white/5 p-4 rounded-lg border border-white/10 flex gap-4 items-start">
           <FaTv className="text-white text-2xl mt-1" />
           <div>
-            <div className="text-sm text-gray-300">{tvTime} watched</div>
+            <div className="text-sm text-gray-300">{minutesToDHm(agg.tv.minutes)} watched</div>
             <div className="font-semibold">
-              {tvEpisodes.toLocaleString()} episodes ({tvShows} shows)
+              {agg.tv.episodesWatched.toLocaleString()} episodes ({agg.tv.shows} shows)
             </div>
           </div>
         </div>
@@ -77,9 +182,9 @@ const UserDashboard = () => {
         <div className="bg-white/5 p-4 rounded-lg border border-white/10 flex gap-4 items-start">
           <FaFilm className="text-white text-2xl mt-1" />
           <div>
-            <div className="text-sm text-gray-300">{movieTime} watched</div>
+            <div className="text-sm text-gray-300">{minutesToDHm(agg.movies.minutes)} watched</div>
             <div className="font-semibold">
-              {moviesWatched} movies ({moviePlays} plays)
+              {agg.movies.count} movies
             </div>
           </div>
         </div>
@@ -89,17 +194,19 @@ const UserDashboard = () => {
           <FaFolder className="text-white text-2xl mt-1" />
           <div>
             <div className="text-sm text-gray-300">Library</div>
-            <div className="font-semibold">0 episodes (0 shows), 0 movies</div>
+            <div className="font-semibold">
+              {agg.library.episodes.toLocaleString()} episodes ({agg.library.shows} shows), {agg.library.movies} movies
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Month in Review */}
+      {/* Month in Review (uses monthly stats + first play bg if available) */}
       <div className="relative">
         <div
           className="relative h-[460px] flex items-center justify-center text-white"
           style={{
-            backgroundImage: `url(${bgImage})`,
+            backgroundImage: `url(${heroBg})`,
             backgroundSize: 'cover',
             backgroundPosition: 'center',
           }}
@@ -109,27 +216,29 @@ const UserDashboard = () => {
 
           {/* Month Title & Stats/First Play Grid Layout */}
           <div className="relative z-10 px-4 max-w-6xl mx-auto">
-            <h2 className="text-5xl font-bold mb-12 text-center md:text-left">
-              your <span className="text-primary lowercase">{month}</span> in review
+            <h2 className="text-5xl font-bold mb-12 text-center">
+              your <span className="text-primary lowercase">{monthName}</span> in review
             </h2>
 
-            <div className="flex flex-col md:flex-row gap-10 items-stretch">
+            <div className="grid md:grid-cols-2 gap-10 items-stretch justify-items-center md:justify-items-stretch">
               {/* Stats 2x2 grid */}
               <div className="grid grid-cols-2 gap-6 flex-1">
-                <StatCard icon={<FaPlay />} label="Plays" value={monthStats.plays} />
-                <StatCard icon={<FaClock />} label="Hours" value={monthStats.hours} />
-                <StatCard icon={<FaHeart />} label="Ratings" value={monthStats.ratings} />
-                <StatCard icon={<FaComment />} label="Comments" value={monthStats.comments} />
+                <StatCard icon={<FaPlay />} label="PLAYS" value={monthStats.plays} />
+                <StatCard icon={<FaClock />} label="HOURS" value={monthStats.hours} />
+                <StatCard icon={<FaHeart />} label="RATINGS" value={0} />
+                <StatCard icon={<FaComment />} label="COMMENTS" value={0} />
               </div>
 
               {/* First Play Info */}
               <div className="bg-white/10 p-6 rounded-xl border border-white/20 text-left flex-1">
                 <div>
                   <p className="uppercase text-sm text-gray-300 tracking-wider mb-2">
-                  First Play of <span className="text-white capitalize">{month}</span>
+                    First Play of <span className="text-white capitalize">{monthName}</span>
                   </p>
-                  <h3 className="text-3xl font-bold mb-1">{monthStats.firstPlay.show}</h3>
-                  <p className="text-lg">{monthStats.firstPlay.episode}</p>
+                  <h3 className="text-3xl font-bold mb-1">{firstPlayHeadline}</h3>
+                  {!monthStats.firstPlay && (
+                    <p className="text-lg text-gray-300">No plays yet this month</p>
+                  )}
                 </div>
                 <div className="flex-1 flex items-center justify-center mt-6">
                   <Link
@@ -141,6 +250,10 @@ const UserDashboard = () => {
                 </div>
               </div>
             </div>
+
+            {(loadingProgress || loadingMonth) && (
+              <div className="mt-6 text-gray-300">Loading…</div>
+            )}
           </div>
         </div>
       </div>
@@ -153,7 +266,7 @@ const StatCard = ({ icon, label, value }) => (
   <div className="bg-[--color-primary-dull] p-4 rounded-xl flex flex-col items-center justify-center space-y-2">
     <div className="text-white text-2xl">{icon}</div>
     <div className="text-2xl font-bold">{value}</div>
-    <div className="text-sm text-gray-300 uppercase">{label}</div>
+    <div className="text-sm text-gray-300 uppercase text-center">{label}</div>
   </div>
 )
 

@@ -1,6 +1,7 @@
 import express from "express";
 import { requireAuth } from "@clerk/express";
 import ProgressItem from "../models/ProgressItem.js";
+import PlayLog from "../models/PlayLog.js";
 
 const router = express.Router();
 router.use(requireAuth());
@@ -15,7 +16,7 @@ router.get("/", async (req, res) => {
 router.post("/", async (req, res) => {
   const userId = req.auth.userId;
   const {
-    itemId, type, title, poster, year, runtime, genres = [], rating,
+    itemId, type, title, poster, backdrop, year, runtime, genres = [], rating,
     incPlays = 1,
     incMinutes = 0,
     tv = {}
@@ -25,14 +26,13 @@ router.post("/", async (req, res) => {
     return res.status(400).json({ error: "itemId, type, and title are required" });
   }
 
-  // Accept either episodesTotal or seasonsTotal (alias), plus ways to set/increment watched
   const {
     episodesTotal,
-    seasonsTotal,                // alias for episodesTotal when you store "seasons" as "episodes"
+    seasonsTotal,
     incEpisode = false,
-    incEpisodes,                 // number to increment watched by
-    setEpisodesWatched,          // absolute setter
-    last = null,                 // { code, name, at }
+    incEpisodes,
+    setEpisodesWatched,
+    last = null, // { code, name, at }
   } = tv;
 
   const resolvedTotal =
@@ -44,10 +44,8 @@ router.post("/", async (req, res) => {
   if (typeof resolvedTotal === "number") $set.episodesTotal = resolvedTotal;
   if (last && (last.code || last.name || last.at)) $set.lastWatched = last;
 
-  // Build update
   const $inc = { plays: incPlays, minutesWatched: incMinutes };
 
-  // If client wants to set an absolute value, prefer $set over $inc
   if (typeof setEpisodesWatched === "number") {
     $set.episodesWatched = setEpisodesWatched;
   } else if (typeof incEpisodes === "number") {
@@ -56,22 +54,47 @@ router.post("/", async (req, res) => {
     $inc.episodesWatched = 1;
   }
 
+  // upsert progress
   const item = await ProgressItem.findOneAndUpdate(
     { userId, itemId },
-    {
-      $set,
-      $setOnInsert: { userId, addedAt: new Date() },
-      $inc,
-    },
+    { $set, $setOnInsert: { userId, addedAt: new Date() }, $inc },
     { upsert: true, new: true }
   );
+
+  // Log plays so we can compute monthly stats exactly
+  // one row per play (runtime is minutes per play; for TV this is per-episode runtime)
+  const minutesPerPlay = Number(runtime || 0) || 0;
+  const logs = [];
+  const globalAt = req.body.at ? new Date(req.body.at) : null;
+  const playAt = (last && last.at) ? new Date(last.at) : (globalAt || new Date());
+
+  for (let i = 0; i < incPlays; i++) {
+    logs.push({
+      userId,
+      itemId,
+      type,
+      title,
+      poster,
+      backdrop,                     // optional wide image
+      code: last?.code,
+      name: last?.name,
+      minutes: minutesPerPlay,
+      at: playAt,
+    });
+  }
+  if (logs.length) await PlayLog.insertMany(logs);
 
   res.status(201).json({ item });
 });
 
 // DELETE remove progress entry
 router.delete("/:itemId", async (req, res) => {
-  await ProgressItem.findOneAndDelete({ userId: req.auth.userId, itemId: req.params.itemId });
+  const userId = req.auth.userId;
+  const { itemId } = req.params;
+
+  await ProgressItem.findOneAndDelete({ userId, itemId });
+  await PlayLog.deleteMany({ userId, itemId });
+
   res.json({ ok: true });
 });
 

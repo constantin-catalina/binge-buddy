@@ -12,6 +12,7 @@ import discoverRoutes from "./routes/discoverRoutes.js";
 import searchRoutes from "./routes/search.js";
 import watchlistRoutes from "./routes/watchlist.js";
 import progressRoutes from "./routes/progress.js";
+import statsRoutes from "./routes/stats.js";
 
 const app = express();
 const PORT = 3000;
@@ -27,6 +28,7 @@ const middleware = clerkMiddleware({
 });
 
 app.use(middleware);
+
 // API Routes
 app.get('/', (req, res) => {  
     res.send('Server is running!');  
@@ -45,6 +47,8 @@ app.use('/api/search', searchRoutes);
 app.use('/api/watchlist', watchlistRoutes);
 
 app.use("/api/progress", progressRoutes);
+
+app.use("/api/stats", statsRoutes);
 
 app.listen(PORT, () => {  
     console.log(`Server is running on http://localhost:${PORT}`);  

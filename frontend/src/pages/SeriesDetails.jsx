@@ -186,6 +186,7 @@ const SeriesDetails = () => {
         genres: show.genres,
         rating: show.vote,
         incPlays: 1,
+        at: new Date().toISOString(),
         tv: {
           episodesTotal: Number(show.number_of_episodes) || 0,
           setEpisodesWatched: derivedEpisodesWatched,
