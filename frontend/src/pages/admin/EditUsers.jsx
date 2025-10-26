@@ -1,39 +1,73 @@
-import React, { useEffect, useState } from 'react';
-import { PencilIcon, Trash2Icon, PlusIcon, SearchIcon } from 'lucide-react';
-import Title from '../../components/admin/Title';
-import BlurCircle from '../../components/BlurCircle';
-import { useNavigate } from 'react-router-dom';
-import { dummyUsers } from '../../lib/dummyUsers';
+// src/pages/admin/EditUsers.jsx
+import React, { useEffect, useMemo, useState } from "react";
+import { PencilIcon, Trash2Icon, PlusIcon, SearchIcon } from "lucide-react";
+import Title from "../../components/admin/Title";
+import BlurCircle from "../../components/BlurCircle";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "@clerk/clerk-react";
+
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
 const EditUsers = () => {
   const [users, setUsers] = useState([]);
-  const [searchTerm, setSearchTerm] = useState('');
-
+  const [searchTerm, setSearchTerm] = useState("");
+  const [loading, setLoading] = useState(true);
+  const { getToken } = useAuth();
   const navigate = useNavigate();
 
-  useEffect(() => {
-    setUsers(dummyUsers);
-  }, []);
-
-  const handleDelete = (id) => {
-    const confirmed = window.confirm('Are you sure you want to delete this user?');
-    if (confirmed) {
-      setUsers(prev => prev.filter(user => user._id !== id));
+  const load = async (q = "") => {
+    setLoading(true);
+    try {
+      const token = await getToken();
+      const res = await fetch(
+        `${API_BASE}/api/admin/users?q=${encodeURIComponent(q)}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const json = await res.json();
+      setUsers(json.users || []);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleEdit = (id) => {
-    navigate(`/admin/edit-users/${id}`);
+  useEffect(() => {
+    load();
+  }, []);
+
+  useEffect(() => {
+    const t = setTimeout(() => load(searchTerm), 350);
+    return () => clearTimeout(t);
+  }, [searchTerm]);
+
+  const handleDelete = async (id) => {
+    const ok = window.confirm("Delete this user?");
+    if (!ok) return;
+    try {
+      const token = await getToken();
+      const res = await fetch(`${API_BASE}/api/admin/users/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Failed to delete");
+      setUsers((u) => u.filter((x) => x._id !== id));
+    } catch (e) {
+      console.error(e);
+      alert("Failed to delete user.");
+    }
   };
 
-  const handleAdd = () => {
-    navigate('/admin/add-user');
-};
+  const handleEdit = (id) => navigate(`/admin/edit-users/${id}`);
+  const handleAdd = () => navigate("/admin/add-user");
 
-  const filteredUsers = users.filter(user => {
-    const fullName = `${user.firstName} ${user.lastName}`.toLowerCase();
-    return fullName.includes(searchTerm.toLowerCase()) || user.email.toLowerCase().includes(searchTerm.toLowerCase());
-  });
+  const filteredUsers = useMemo(() => {
+    const q = searchTerm.toLowerCase();
+    return users.filter((u) => {
+      const full = `${u.firstName} ${u.lastName}`.toLowerCase();
+      return full.includes(q) || (u.email || "").toLowerCase().includes(q);
+    });
+  }, [users, searchTerm]);
 
   return (
     <div className="relative">
@@ -61,28 +95,43 @@ const EditUsers = () => {
         </button>
       </div>
 
-      <div className="grid gap-4 mt-6 w-full">
-        {filteredUsers.length > 0 ? (
-          filteredUsers.map((user) => (
-            <div key={user._id} className="bg-primary/10 border border-primary/20 rounded-lg p-4 flex justify-between items-center">
-              <div>
-                <p className="font-medium">{user.firstName} {user.lastName}</p>
-                <p className="text-xs text-gray-400">{user.email}</p>
+      {loading ? (
+        <p className="mt-6 text-gray-400">Loading…</p>
+      ) : (
+        <div className="grid gap-4 mt-6 w-full">
+          {filteredUsers.length > 0 ? (
+            filteredUsers.map((user) => (
+              <div
+                key={user._id}
+                className="bg-primary/10 border border-primary/20 rounded-lg p-4 flex justify-between items-center"
+              >
+                <div>
+                  <p className="font-medium">
+                    {user.firstName} {user.lastName}
+                  </p>
+                  <p className="text-xs text-gray-400">{user.email}</p>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleEdit(user._id)}
+                    className="text-primary hover:text-white transition"
+                  >
+                    <PencilIcon className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(user._id)}
+                    className="text-red-500 hover:text-white transition"
+                  >
+                    <Trash2Icon className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
-              <div className="flex gap-2">
-                <button onClick={() => handleEdit(user._id)} className="text-primary hover:text-white transition">
-                  <PencilIcon className="w-4 h-4" />
-                </button>
-                <button onClick={() => handleDelete(user._id)} className="text-red-500 hover:text-white transition">
-                  <Trash2Icon className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          ))
-        ) : (
-          <p className="text-gray-500 mt-6">No users found.</p>
-        )}
-      </div>
+            ))
+          ) : (
+            <p className="text-gray-500 mt-6">No users found.</p>
+          )}
+        </div>
+      )}
     </div>
   );
 };

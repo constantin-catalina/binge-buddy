@@ -1,4 +1,3 @@
-// components/ProgressRowCard.jsx
 import React from "react"
 import { Play, Clock3, Tv2, Check, X, Star } from "lucide-react"
 

@@ -1,39 +1,57 @@
-import React, { useState } from 'react';
-import Title from '../../components/admin/Title';
-import BlurCircle from '../../components/BlurCircle';
-import { useNavigate } from 'react-router-dom';
+import React, { useState } from "react";
+import Title from "../../components/admin/Title";
+import BlurCircle from "../../components/BlurCircle";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "@clerk/clerk-react";
+
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
 const AddShow = () => {
   const navigate = useNavigate();
+  const { getToken } = useAuth();
+
   const [formData, setFormData] = useState({
-    title: '',
-    type: 'movie',
-    backdrop_path: '',
-    vote_average: '',
-    genres: '',
-    release_date: '',
-    runtime: '',
+    title: "",
+    type: "movie",               // movie | tv
+    backdrop_path: "",
+    vote_average: "",
+    genres: "",                  // "Action, Drama"
+    release_date: "",            // yyyy-mm-dd
+    runtime: "",                 // minutes (movies only)
   });
+  const [submitting, setSubmitting] = useState(false);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData((p) => ({ ...p, [name]: value }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-
-    const newShow = {
-      _id: Date.now().toString(),
-      ...formData,
-      vote_average: parseFloat(formData.vote_average),
-      genres: formData.genres.split(',').map(name => ({ name: name.trim() })),
-    };
-
-    console.log('Submitted show:', newShow);
-    alert('Show added successfully!');
-
-    navigate('/admin/list-shows');
+    setSubmitting(true);
+    try {
+      const token = await getToken();
+      const payload = {
+        ...formData,
+        vote_average: parseFloat(formData.vote_average || "0"),
+      };
+      const res = await fetch(`${API_BASE}/api/admin/shows`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error("Failed to add");
+      alert("Show added successfully!");
+      navigate("/admin/edit-shows");
+    } catch (e) {
+      console.error(e);
+      alert("Failed to add show.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -53,6 +71,7 @@ const AddShow = () => {
             onChange={handleChange}
             required
             className="w-full px-4 py-2 rounded bg-black border border-gray-600 text-white"
+            placeholder="Inception"
           />
         </div>
 
@@ -69,40 +88,31 @@ const AddShow = () => {
           </select>
         </div>
 
-        <div>
-          <label className="block mb-1 text-sm text-gray-300">Poster URL</label>
+        <div className="md:col-span-2">
+          <label className="block mb-1 text-sm text-gray-300">Poster / Backdrop URL</label>
           <input
             name="backdrop_path"
             value={formData.backdrop_path}
             onChange={handleChange}
-            placeholder="/your-image.jpg"
             required
             className="w-full px-4 py-2 rounded bg-black border border-gray-600 text-white"
+            placeholder="https://image.tmdb.org/t/p/w780/....jpg"
           />
         </div>
 
         <div>
-          <label className="block mb-1 text-sm text-gray-300">Vote Average</label>
+          <label className="block mb-1 text-sm text-gray-300">Vote Average (0–10)</label>
           <input
             name="vote_average"
-            value={formData.vote_average}
-            onChange={handleChange}
             type="number"
             step="0.1"
-            required
-            className="w-full px-4 py-2 rounded bg-black border border-gray-600 text-white"
-          />
-        </div>
-
-        <div className="md:col-span-2">
-          <label className="block mb-1 text-sm text-gray-300">Genres (comma separated)</label>
-          <input
-            name="genres"
-            value={formData.genres}
+            min="0"
+            max="10"
+            value={formData.vote_average}
             onChange={handleChange}
-            placeholder="Action, Thriller"
             required
             className="w-full px-4 py-2 rounded bg-black border border-gray-600 text-white"
+            placeholder="8.7"
           />
         </div>
 
@@ -110,32 +120,48 @@ const AddShow = () => {
           <label className="block mb-1 text-sm text-gray-300">Release Date</label>
           <input
             name="release_date"
+            type="date"
             value={formData.release_date}
             onChange={handleChange}
-            type="date"
             required
             className="w-full px-4 py-2 rounded bg-black border border-gray-600 text-white"
           />
         </div>
 
-        <div>
-          <label className="block mb-1 text-sm text-gray-300">Runtime (in minutes)</label>
+        {formData.type === "movie" && (
+          <div>
+            <label className="block mb-1 text-sm text-gray-300">Runtime (minutes)</label>
+            <input
+              name="runtime"
+              type="number"
+              min="0"
+              value={formData.runtime}
+              onChange={handleChange}
+              className="w-full px-4 py-2 rounded bg-black border border-gray-600 text-white"
+              placeholder="148"
+            />
+          </div>
+        )}
+
+        <div className="md:col-span-2">
+          <label className="block mb-1 text-sm text-gray-300">Genres (comma separated)</label>
           <input
-            name="runtime"
-            value={formData.runtime}
+            name="genres"
+            value={formData.genres}
             onChange={handleChange}
-            type="number"
             required
             className="w-full px-4 py-2 rounded bg-black border border-gray-600 text-white"
+            placeholder="Action, Sci-Fi"
           />
         </div>
 
         <div className="md:col-span-2 text-right">
           <button
             type="submit"
-            className="bg-primary/20 hover:bg-primary/30 text-white px-6 py-2 rounded-md transition"
+            disabled={submitting}
+            className="bg-primary/20 hover:bg-primary/30 disabled:opacity-50 text-white px-6 py-2 rounded-md transition"
           >
-            Submit Show
+            {submitting ? "Submitting…" : "Submit Show"}
           </button>
         </div>
       </form>

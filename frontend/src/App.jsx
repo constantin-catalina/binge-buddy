@@ -21,6 +21,7 @@ import AddUser from './pages/admin/AddUser'
 import EditUser from './pages/admin/EditUser'
 import SearchResults from './pages/SearchResults'
 import SeriesDetails from './pages/SeriesDetails'
+import RequireAdmin from './components/auth/RequireAdmin'
 
 const App = () => {
 
@@ -41,7 +42,11 @@ const App = () => {
         <Route path="/watchlist" element={<MyWatchlist/>}/>
         <Route path="/dashboard" element={<UserDashboard/>}/>
         <Route path="/progress" element={<Progress/>}/>
-        <Route path="/admin/*" element={<Layout/>}> 
+        <Route path="/admin/*" element={
+            <RequireAdmin>
+            <Layout/>
+            </RequireAdmin>
+          }> 
           <Route index element={<Dashboard/>}/>
           <Route path="edit-shows" element={<EditShows/>}/>
           <Route path="add-show" element={<AddShow/>}/>

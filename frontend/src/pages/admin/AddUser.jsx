@@ -1,25 +1,48 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import Title from '../../components/admin/Title';
-import BlurCircle from '../../components/BlurCircle';
+import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import Title from "../../components/admin/Title";
+import BlurCircle from "../../components/BlurCircle";
+import { useAuth } from "@clerk/clerk-react";
+
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
 const AddUser = () => {
   const navigate = useNavigate();
+  const { getToken } = useAuth();
   const [formData, setFormData] = useState({
-    firstName: '',
-    lastName: '',
-    email: ''
+    firstName: "",
+    lastName: "",
+    email: "",
   });
+  const [submitting, setSubmitting] = useState(false);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log('New user:', formData);
-    navigate('/admin/edit-users');
+    setSubmitting(true);
+    try {
+      const token = await getToken();
+      const res = await fetch(`${API_BASE}/api/admin/users`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(formData),
+      });
+      if (!res.ok) throw new Error("Failed to invite user");
+      alert("Invitation sent!");
+      navigate("/admin/edit-users");
+    } catch (err) {
+      console.error(err);
+      alert("Could not invite user.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -68,9 +91,10 @@ const AddUser = () => {
         <div className="sm:col-span-2 text-right">
           <button
             type="submit"
-            className="bg-primary/20 hover:bg-primary/30 text-white px-6 py-2 rounded-md transition"
+            disabled={submitting}
+            className="bg-primary/20 hover:bg-primary/30 disabled:opacity-50 text-white px-6 py-2 rounded-md transition"
           >
-            Add User
+            {submitting ? "Sending…" : "Add User"}
           </button>
         </div>
       </form>

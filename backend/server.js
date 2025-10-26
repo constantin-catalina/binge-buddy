@@ -13,6 +13,7 @@ import searchRoutes from "./routes/search.js";
 import watchlistRoutes from "./routes/watchlist.js";
 import progressRoutes from "./routes/progress.js";
 import statsRoutes from "./routes/stats.js";
+import adminRoutes from "./routes/adminRoutes.js";
 
 const app = express();
 const PORT = 3000;
@@ -21,7 +22,11 @@ await connectDB();
 
 // Middleware
 app.use(express.json());
-app.use(cors());
+app.use(cors({
+    origin: '*', // Adjust this in production to restrict to your frontend domain
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+}));
 const middleware = clerkMiddleware({
   publishableKey: process.env.CLERK_PUBLISHABLE_KEY,
   secretKey: process.env.CLERK_SECRET_KEY,
@@ -49,6 +54,8 @@ app.use('/api/watchlist', watchlistRoutes);
 app.use("/api/progress", progressRoutes);
 
 app.use("/api/stats", statsRoutes);
+
+app.use('/api/admin', adminRoutes);
 
 app.listen(PORT, () => {  
     console.log(`Server is running on http://localhost:${PORT}`);  

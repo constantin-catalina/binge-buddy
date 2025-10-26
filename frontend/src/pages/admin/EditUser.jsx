@@ -1,47 +1,73 @@
-import React, { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import Title from '../../components/admin/Title';
-import BlurCircle from '../../components/BlurCircle';
+import React, { useEffect, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import Title from "../../components/admin/Title";
+import BlurCircle from "../../components/BlurCircle";
+import { useAuth } from "@clerk/clerk-react";
 
-const dummyUsers = [
-  { _id: '1', firstName: 'John', lastName: 'Doe', email: 'john@example.com' },
-  { _id: '2', firstName: 'Jane', lastName: 'Smith', email: 'jane@example.com' },
-  { _id: '3', firstName: 'Alice', lastName: 'Brown', email: 'alice@example.com' },
-  { _id: '4', firstName: 'Bob', lastName: 'Johnson', email: 'bob@example.com' },
-];
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
 const EditUser = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { getToken } = useAuth();
 
   const [formData, setFormData] = useState({
-    _id: '',
-    firstName: '',
-    lastName: '',
-    email: ''
+    _id: "",
+    firstName: "",
+    lastName: "",
+    email: "",
   });
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const user = dummyUsers.find(u => u._id === id);
-    if (user) {
-      setFormData(user);
-    } else {
-      alert("User not found");
-      navigate('/admin/edit-users');
-    }
-  }, [id, navigate]);
+    (async () => {
+      try {
+        const token = await getToken();
+        const res = await fetch(`${API_BASE}/api/admin/users/${id}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) throw new Error("User not found");
+        const { user } = await res.json();
+        setFormData(user);
+      } catch (e) {
+        alert("User not found");
+        navigate("/admin/edit-users");
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [id, navigate, getToken]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log("Updated User:", formData);
-    alert("User updated!");
-    navigate('/admin/edit-users');
+    try {
+      const token = await getToken();
+      const res = await fetch(`${API_BASE}/api/admin/users/${id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+        }),
+      });
+      if (!res.ok) throw new Error("Failed to save");
+      alert("User updated!");
+      navigate("/admin/edit-users");
+    } catch (e) {
+      console.error(e);
+      alert("Failed to update user.");
+    }
   };
+
+  if (loading) return <div className="p-6">Loading…</div>;
 
   return (
     <div className="relative">
@@ -74,14 +100,13 @@ const EditUser = () => {
           />
         </div>
 
-        <div className="sm:col-span-2">
+        <div className="sm:col-span-2 opacity-60">
           <label className="block mb-1 text-sm text-gray-300">Email</label>
           <input
             name="email"
             type="email"
             value={formData.email}
-            onChange={handleChange}
-            required
+            disabled
             className="w-full px-4 py-2 rounded bg-black border border-gray-600 text-white"
           />
         </div>
