@@ -1,17 +1,41 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { assets } from '../assets/assets'
-import { Menu as MenuIcon, Search as SearchIcon, TicketPlus, User, X as XIcon, LayoutDashboard, LineChart } from 'lucide-react'
-import { useClerk, UserButton, useUser } from '@clerk/clerk-react'
+import { Menu as MenuIcon, Search as SearchIcon, TicketPlus, User, X as XIcon, LayoutDashboard, LineChart, ShieldCheck } from 'lucide-react'
+import { useClerk, UserButton, useUser, useAuth } from '@clerk/clerk-react'
+
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 const Navbar = () => {
 
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const {user} = useUser();
+  const [isAdmin, setIsAdmin] = useState(false); 
+
+  const {user, isLoaded, isSignedIn} = useUser();
+  const { getToken } = useAuth();
   const {openSignIn} = useClerk();
 
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const run = async () => {
+      if (!isLoaded || !isSignedIn) {
+        setIsAdmin(false);
+        return;
+      }
+      try {
+        const token = await getToken();
+        const res = await fetch(`${API_BASE}/api/admin/check`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setIsAdmin(res.ok);
+      } catch {
+        setIsAdmin(false);
+      }
+    };
+    run();
+  }, [isLoaded, isSignedIn, getToken]);
 
   const handleSearch = (e) => {
     if(e.key === 'Enter' && searchQuery.trim()) {
@@ -62,6 +86,13 @@ const Navbar = () => {
           ) : (
             <UserButton>
               <UserButton.MenuItems>
+                { isAdmin && (
+                  <UserButton.Action
+                  label="Admin Panel"
+                  labelIcon={<ShieldCheck width={15}/>}
+                  onClick={() => navigate('/admin')}
+                  />
+                )}
                 <UserButton.Action
                 label="Dashboard"
                 labelIcon={<LayoutDashboard width={15} />}

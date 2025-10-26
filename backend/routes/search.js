@@ -30,7 +30,7 @@ router.get('/', async (req, res) => {
 
     const combined = [...movieResults, ...tvResults];
 
-    // 🔥 Boost score based on match quality
+    // Boost score based on match quality
     const scored = combined.map((item) => {
       const title = item.title.toLowerCase();
       let score = 0;

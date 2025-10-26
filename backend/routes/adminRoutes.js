@@ -1,10 +1,12 @@
 import express from "express";
-import { protectAdmin } from "../middleware/auth.js";      
-import { clerkClient } from "@clerk/express";              
-import Movie from "../models/Movie.js";                    
-import TvShow from "../models/TvShow.js";                  
+import { protectAdmin } from "../middleware/auth.js";
+import { clerkClient } from "@clerk/express";
+import Movie from "../models/Movie.js";
+import TvShow from "../models/TvShow.js";
 
 const router = express.Router();
+
+/* ---------- Admin check & summary ---------- */
 
 router.get("/check", protectAdmin, (_req, res) => res.json({ isAdmin: true }));
 
@@ -13,7 +15,7 @@ router.get("/summary", protectAdmin, async (_req, res) => {
     const [movieCount, tvCount, usersList] = await Promise.all([
       Movie.countDocuments({}),
       TvShow.countDocuments({}),
-      clerkClient.users.getUserList({ limit: 1 }), 
+      clerkClient.users.getUserList({ limit: 1 }),
     ]);
 
     const userCount = usersList?.totalCount ?? 0;
@@ -30,10 +32,9 @@ router.get("/summary", protectAdmin, async (_req, res) => {
   }
 });
 
-/**
- * LIST users (with optional search & pagination)
- * GET /api/admin/users?q=search&limit=50&offset=0
- */
+/* ---------- Clerk users CRUD ---------- */
+
+/** LIST users */
 router.get("/users", protectAdmin, async (req, res) => {
   try {
     const { q = "", limit = "50", offset = "0" } = req.query;
@@ -45,7 +46,6 @@ router.get("/users", protectAdmin, async (req, res) => {
       orderBy: "-created_at",
     });
 
-    // Normalize for the frontend
     const users = list.data.map((u) => ({
       _id: u.id,
       firstName: u.firstName || "",
@@ -63,10 +63,7 @@ router.get("/users", protectAdmin, async (req, res) => {
   }
 });
 
-/**
- * GET one user
- * GET /api/admin/users/:id
- */
+/** GET one user */
 router.get("/users/:id", protectAdmin, async (req, res) => {
   try {
     const u = await clerkClient.users.getUser(req.params.id);
@@ -86,20 +83,15 @@ router.get("/users/:id", protectAdmin, async (req, res) => {
   }
 });
 
-/**
- * ADD user – send an invitation email via Clerk
- * POST /api/admin/users { firstName, lastName, email }
- */
+/** ADD user (invite) */
 router.post("/users", protectAdmin, async (req, res) => {
   try {
     const { firstName = "", lastName = "", email } = req.body;
     if (!email) return res.status(400).json({ message: "Email is required" });
 
-    // Clerk invitation (recommended for admin-created users)
     const invite = await clerkClient.invitations.createInvitation({
       emailAddress: email,
       publicMetadata: { createdByAdmin: true, firstName, lastName },
-      // optional: where the invite link should land after acceptance
       redirectUrl:
         process.env.CLERK_INVITE_REDIRECT_URL ||
         "http://localhost:5173/sign-in",
@@ -112,11 +104,7 @@ router.post("/users", protectAdmin, async (req, res) => {
   }
 });
 
-/**
- * EDIT user – update first & last name
- * PATCH /api/admin/users/:id { firstName, lastName }
- * (Email changes are more complex in Clerk; keep email read-only for now.)
- */
+/** EDIT user (name only) */
 router.patch("/users/:id", protectAdmin, async (req, res) => {
   try {
     const { firstName, lastName } = req.body;
@@ -135,10 +123,7 @@ router.patch("/users/:id", protectAdmin, async (req, res) => {
   }
 });
 
-/**
- * DELETE user
- * DELETE /api/admin/users/:id
- */
+/** DELETE user */
 router.delete("/users/:id", protectAdmin, async (req, res) => {
   try {
     await clerkClient.users.deleteUser(req.params.id);
@@ -149,16 +134,20 @@ router.delete("/users/:id", protectAdmin, async (req, res) => {
   }
 });
 
-// Helper to normalize DB docs for the UI
+/* ---------- Shows CRUD (Movies + TV) ---------- */
+
+// Normalize DB docs for the admin UI & public views
 const normalize = (doc, type) => ({
   _id: String(doc._id),
   type,
   title: doc.title || doc.name || "Untitled",
   backdrop_path: doc.backdrop_path || doc.poster_path || "",
   vote_average: Number(doc.vote_average ?? 0),
-  // support both schemas: genres: string[] or [{name}]
+  // Always return TMDB-style: [{ name }]
   genres: Array.isArray(doc.genres)
-    ? doc.genres.map(g => typeof g === "string" ? { name: g } : { name: g.name ?? g })
+    ? doc.genres.map((g) =>
+        typeof g === "string" ? { name: g } : { name: g?.name ?? g }
+      )
     : [],
   release_date: doc.release_date || doc.first_air_date || "",
   runtime: doc.runtime || undefined,
@@ -173,18 +162,23 @@ router.get("/shows", protectAdmin, async (req, res) => {
     const rx = q ? new RegExp(q, "i") : null;
 
     const movieQuery = rx ? { title: rx } : {};
-    const tvQuery    = rx ? { name: rx }  : {};
+    const tvQuery = rx ? { name: rx } : {};
 
     const tasks = [];
-    if (type !== "tv")  tasks.push(Movie.find(movieQuery).sort({ _id: -1 }).skip(skip).limit(lim));
-    if (type !== "movie") tasks.push(TvShow.find(tvQuery).sort({ _id: -1 }).skip(skip).limit(lim));
+    if (type !== "tv")
+      tasks.push(Movie.find(movieQuery).sort({ _id: -1 }).skip(skip).limit(lim));
+    if (type !== "movie")
+      tasks.push(TvShow.find(tvQuery).sort({ _id: -1 }).skip(skip).limit(lim));
 
-    const [movies = [], shows = []] = await Promise.all(tasks.length === 2 ? tasks : [...tasks, Promise.resolve([])]);
+    const [movies = [], shows = []] =
+      (tasks.length === 2
+        ? await Promise.all(tasks)
+        : [...(await Promise.all(tasks)), []]) || [];
 
     const list = [
-      ...movies.map(m => normalize(m, "movie")),
-      ...shows.map(s => normalize(s, "tv")),
-    ].slice(0, lim); // simple mix; you can refine ordering later
+      ...movies.map((m) => normalize(m, "movie")),
+      ...shows.map((s) => normalize(s, "tv")),
+    ].slice(0, lim);
 
     res.json({ shows: list, total: list.length });
   } catch (e) {
@@ -193,7 +187,7 @@ router.get("/shows", protectAdmin, async (req, res) => {
   }
 });
 
-// GET /api/admin/shows/:id   (auto-detect collection)
+// GET /api/admin/shows/:id
 router.get("/shows/:id", protectAdmin, async (req, res) => {
   try {
     const id = req.params.id;
@@ -208,7 +202,24 @@ router.get("/shows/:id", protectAdmin, async (req, res) => {
   }
 });
 
-// POST /api/admin/shows  { type: 'movie'|'tv', title/name, ... }
+// Helper: coerce incoming genres to TMDB-style objects [{name}]
+const coerceGenresToObjects = (genres) => {
+  if (typeof genres === "string") {
+    return genres
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .map((name) => ({ name }));
+  }
+  if (Array.isArray(genres)) {
+    return genres
+      .map((g) => (typeof g === "string" ? { name: g } : { name: g?.name || "" }))
+      .filter((g) => g.name);
+  }
+  return undefined;
+};
+
+// POST /api/admin/shows
 router.post("/shows", protectAdmin, async (req, res) => {
   try {
     const { type, ...payload } = req.body;
@@ -216,11 +227,12 @@ router.post("/shows", protectAdmin, async (req, res) => {
       return res.status(400).json({ message: "type must be 'movie' or 'tv'" });
     }
     const Model = type === "movie" ? Movie : TvShow;
-    // tolerate genres as "Action, Drama" or [{name}] or ["Action"]
-    if (typeof payload.genres === "string") {
-      payload.genres = payload.genres.split(",").map(s => s.trim()).filter(Boolean);
-    }
-    const created = await Model.create(payload);
+
+    const coerced = { ...payload };
+    const genresAsObjects = coerceGenresToObjects(coerced.genres);
+    if (genresAsObjects) coerced.genres = genresAsObjects;
+
+    const created = await Model.create(coerced);
     res.status(201).json({ show: normalize(created, type) });
   } catch (e) {
     console.error(e);
@@ -228,13 +240,13 @@ router.post("/shows", protectAdmin, async (req, res) => {
   }
 });
 
-// PATCH /api/admin/shows/:id  (auto-detect collection)
+// PATCH /api/admin/shows/:id
 router.patch("/shows/:id", protectAdmin, async (req, res) => {
   try {
     const update = { ...req.body };
-    if (typeof update.genres === "string") {
-      update.genres = update.genres.split(",").map(s => s.trim()).filter(Boolean);
-    }
+
+    const genresAsObjects = coerceGenresToObjects(update.genres);
+    if (genresAsObjects) update.genres = genresAsObjects;
 
     let doc = await Movie.findByIdAndUpdate(req.params.id, update, { new: true });
     if (doc) return res.json({ show: normalize(doc, "movie") });
@@ -249,7 +261,7 @@ router.patch("/shows/:id", protectAdmin, async (req, res) => {
   }
 });
 
-// DELETE /api/admin/shows/:id  (auto-detect collection)
+// DELETE /api/admin/shows/:id
 router.delete("/shows/:id", protectAdmin, async (req, res) => {
   try {
     let doc = await Movie.findByIdAndDelete(req.params.id);
