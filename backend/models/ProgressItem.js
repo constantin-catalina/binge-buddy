@@ -11,20 +11,18 @@ const progressItemSchema = new mongoose.Schema({
   itemId:   { type: String, required: true }, 
   type:     { type: String, enum: ["movie", "tv"], required: true },
 
-  // metadata for cards
   title:    { type: String, required: true },
   poster:   { type: String },
   year:     { type: String },
-  runtime:  { type: Number },     // minutes (per episode for TV)
+  runtime:  { type: Number },     
   genres:   [String],
   rating:   { type: Number },
 
-  // PROGRESS
-  plays:            { type: Number, default: 0 },     // movies or tv
-  episodesTotal:    { type: Number },                 // TV (optional)
-  episodesWatched:  { type: Number, default: 0 },     // TV
-  minutesWatched:   { type: Number, default: 0 },     // Movies/TV (rough)
-  lastWatched:      { type: lastWatchedSchema },      // TV
+  plays:            { type: Number, default: 0 },     
+  episodesTotal:    { type: Number },                 
+  episodesWatched:  { type: Number, default: 0 },     
+  minutesWatched:   { type: Number, default: 0 },     
+  lastWatched:      { type: lastWatchedSchema },      
 
   addedAt:  { type: Date, default: Date.now },
 }, { timestamps: true });

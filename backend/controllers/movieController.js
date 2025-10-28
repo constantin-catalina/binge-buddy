@@ -1,5 +1,5 @@
 import axios from "axios";
-import Movie from "../models/Movie.js"; // <-- add this import
+import Movie from "../models/Movie.js";
 
 // List all movies (from your DB), with pagination & search
 export const listAllMovies = async (req, res) => {

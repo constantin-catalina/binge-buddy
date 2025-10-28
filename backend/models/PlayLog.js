@@ -9,11 +9,10 @@ const playLogSchema = new mongoose.Schema({
   poster:   { type: String },
   backdrop: { type: String },
 
-  // optional TV episode info
-  code:     { type: String },   // e.g. "2x05" or "S02E05"
+  code:     { type: String },   
   name:     { type: String },
 
-  minutes:  { type: Number, default: 0 },  // minutes for this play
+  minutes:  { type: Number, default: 0 },  
   at:       { type: Date, default: Date.now }
 }, { timestamps: true });
 
