@@ -25,7 +25,7 @@ router.get('/', async (req, res) => {
 
     tvResults.forEach((s) => {
       s.type = 'show';
-      s.title = s.name || ''; // normalize for sorting
+      s.title = s.name || '';
     });
 
     const combined = [...movieResults, ...tvResults];
@@ -35,7 +35,7 @@ router.get('/', async (req, res) => {
       const title = item.title.toLowerCase();
       let score = 0;
 
-      if (title === q) score = 100; // exact match
+      if (title === q) score = 100;
       else if (title.startsWith(q)) score = 80;
       else if (title.includes(q)) score = 60;
       else score = 40;

@@ -6,7 +6,7 @@ export const listAllShows = async (req, res) => {
     const page = parseInt(req.query.page) || 1;
 
     const shows = await TvShow.find({})
-      .sort({ vote_average: -1 }) // highest rated first
+      .sort({ vote_average: -1 }) 
       .skip((page - 1) * limit)
       .limit(limit);
 

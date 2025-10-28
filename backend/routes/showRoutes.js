@@ -7,7 +7,6 @@ import { tmdbFindMovieIdByTitleYear, tmdbMovieVideos, tmdbMovieCredits } from ".
 
 const showRouter = express.Router();
 
-// DB-backed movie listing and detail
 showRouter.get('/movies', listAllMovies);        // GET /api/show/movies
 showRouter.get('/movies/:id', getMovieById);     // GET /api/show/movies/:id
 
@@ -20,7 +19,7 @@ const TMDB = axios.create({
 
 showRouter.post('/import/:type', async (req, res) => {
   const { type } = req.params;
-  const limit = parseInt(req.query.limit) || null; // Optional ?limit=32
+  const limit = parseInt(req.query.limit) || null;
   const validTypes = ['popular', 'top_rated', 'now_playing', 'upcoming'];
 
   if (!validTypes.includes(type)) {
@@ -40,7 +39,7 @@ showRouter.post('/import/:type', async (req, res) => {
       allMovies.push(...results);
 
       if (limit && allMovies.length >= limit) {
-        allMovies.length = limit; // Truncate to exact limit
+        allMovies.length = limit;
         break;
       }
 
@@ -139,7 +138,6 @@ showRouter.get("/movies/:id/extras", async (req, res) => {
     const title = dbMovie.title || dbMovie.name || "";
     const year = (dbMovie.release_date || "").slice(0, 4);
 
-    // If you store tmdbId in your schema, prefer using that directly.
     const tmdbId = dbMovie.tmdbId || (await tmdbFindMovieIdByTitleYear(title, year));
     if (!tmdbId) return res.json({ trailerUrl: null, cast: [] });
 
@@ -155,7 +153,6 @@ showRouter.get("/movies/:id/extras", async (req, res) => {
   }
 });
 
-// ✅ FULL CAST (MOVIES)
 showRouter.get("/movies/:id/cast", async (req, res) => {
   try {
     const paramId = req.params.id;

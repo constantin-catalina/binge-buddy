@@ -1,7 +1,6 @@
 import axios from "axios";
 import Movie from "../models/Movie.js";
 
-// List all movies (from your DB), with pagination & search
 export const listAllMovies = async (req, res) => {
   try {
     const page = Math.max(1, parseInt(req.query.page || "1", 10));
@@ -32,7 +31,6 @@ export const listAllMovies = async (req, res) => {
   }
 };
 
-// Get one movie by its _id (string)
 export const getMovieById = async (req, res) => {
   try {
     const { id } = req.params;

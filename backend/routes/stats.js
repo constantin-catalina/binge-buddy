@@ -41,7 +41,6 @@ router.get("/month", async (req, res) => {
     at: plays[0].at,
   } : null;
 
-  // Lifetime library snapshot (optional box on your UI)
   const items = await ProgressItem.find({ userId }).select("type episodesTotal");
   const shows = new Set(items.filter(i => i.type === "tv").map(i => i.itemId)).size;
   const movies = items.filter(i => i.type === "movie").length;

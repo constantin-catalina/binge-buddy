@@ -21,11 +21,11 @@ export const discoverContent = async (req, res) => {
     }
 
     if (countryList.length) {
-      filter.origin_country = { $in: countryList }; // update this if your model uses a different field
+      filter.origin_country = { $in: countryList }; 
     }
 
     if (quality && quality !== 'all') {
-      filter.quality = quality; // only if you store quality in the model
+      filter.quality = quality;
     }
 
     return filter;

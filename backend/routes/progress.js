@@ -32,7 +32,7 @@ router.post("/", async (req, res) => {
     incEpisode = false,
     incEpisodes,
     setEpisodesWatched,
-    last = null, // { code, name, at }
+    last = null, 
   } = tv;
 
   const resolvedTotal =
@@ -54,15 +54,12 @@ router.post("/", async (req, res) => {
     $inc.episodesWatched = 1;
   }
 
-  // upsert progress
   const item = await ProgressItem.findOneAndUpdate(
     { userId, itemId },
     { $set, $setOnInsert: { userId, addedAt: new Date() }, $inc },
     { upsert: true, new: true }
   );
 
-  // Log plays so we can compute monthly stats exactly
-  // one row per play (runtime is minutes per play; for TV this is per-episode runtime)
   const minutesPerPlay = Number(runtime || 0) || 0;
   const logs = [];
   const globalAt = req.body.at ? new Date(req.body.at) : null;
@@ -75,7 +72,7 @@ router.post("/", async (req, res) => {
       type,
       title,
       poster,
-      backdrop,                     // optional wide image
+      backdrop,                     
       code: last?.code,
       name: last?.name,
       minutes: minutesPerPlay,
